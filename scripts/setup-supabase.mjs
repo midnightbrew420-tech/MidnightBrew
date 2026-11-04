@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // One-shot Supabase setup for Midnight Brew.
 //
-//   1. creates the tables, security rules and order functions (supabase/schema.sql)
-//   2. loads the menu (supabase/seed.sql)          — skip with SKIP_SEED=1
+//   1. runs supabase/migrations/*.sql in order: tables, security rules,
+//      order functions, and the starting menu (only if the menu is empty)
+//      — the same files the Supabase GitHub integration applies on merge
 //   3. creates a staff login                       — if STAFF_EMAIL/STAFF_PASSWORD are set
 //   4. turns off public sign-ups (only staff you add can log in)
 //   5. writes .env.local and prints the two values to paste into Vercel
@@ -13,9 +14,9 @@
 //   STAFF_EMAIL, STAFF_PASSWORD   (optional) first staff login
 //
 // Run:  npm run setup:supabase
-// Safe to run again: the schema is re-runnable; the seed resets the menu but keeps orders.
+// Safe to run again: nothing is deleted, and an existing menu is left alone.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const ref = process.env.SUPABASE_PROJECT_REF;
@@ -53,10 +54,12 @@ async function call(url, { method = "GET", body, headers = {} } = {}) {
 const mgmt = (path, opts = {}) =>
   call(`${api}${path}`, { ...opts, headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
 
+const migrationsDir = new URL("../supabase/migrations/", import.meta.url);
+
 async function runSql(file) {
-  const query = await readFile(new URL(`../supabase/${file}`, import.meta.url), "utf8");
+  const query = await readFile(new URL(file, migrationsDir), "utf8");
   await mgmt("/database/query", { method: "POST", body: { query } });
-  console.log(`✓ ran supabase/${file}`);
+  console.log(`✓ ran supabase/migrations/${file}`);
 }
 
 const step = async (label, fn) => {
@@ -73,8 +76,8 @@ await step("checking the project", async () => {
   console.log(`✓ project "${p.name}" (${p.region}) is ${p.status}`);
 });
 
-await step("creating tables and rules", () => runSql("schema.sql"));
-if (!process.env.SKIP_SEED) await step("loading the menu", () => runSql("seed.sql"));
+const migrations = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
+for (const f of migrations) await step(`running ${f}`, () => runSql(f));
 
 const keys = await step("reading API keys", () => mgmt("/api-keys"));
 const pick = (name) => keys.find((k) => k.name === name)?.api_key;

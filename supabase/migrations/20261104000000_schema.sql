@@ -1,10 +1,8 @@
 -- =====================================================================
--- Midnight Brew — database schema (safe to re-run)
--- Run this once in Supabase → SQL Editor → New query → Run.
--- Then run seed.sql to load the menu.
+-- Midnight Brew — database schema
+-- Applied automatically by the Supabase GitHub integration when merged to
+-- main (or by `npm run setup:supabase`). Safe to re-run.
 -- =====================================================================
-
-create extension if not exists "pgcrypto";
 
 -- ---------- Menu ----------
 create table if not exists public.menu_items (

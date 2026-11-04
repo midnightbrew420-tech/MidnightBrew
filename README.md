@@ -24,7 +24,11 @@ A link between customers and staff: **no payments happen in the app**. It handle
 
 ### 1. Supabase
 1. Create a project at supabase.com.
-2. **SQL Editor → New query**: paste `supabase/schema.sql` and **Run**. Then do the same with `supabase/seed.sql` (the menu). Running `schema.sql` again later is safe. Running `seed.sql` again resets the menu but keeps orders.
+2. **Database tables and menu are set up automatically.** In Supabase, open **Project Settings → Integrations → GitHub**, connect this repo, and switch on **Deploy to production** with production branch `main`. On every merge to `main`, Supabase applies any new files in `supabase/migrations/`. Each file runs once:
+   - `…_schema.sql`: tables, security rules and order functions
+   - `…_menu.sql`: the starting menu (only loads if the menu is empty, so your later edits are kept)
+
+   *Without the integration:* open **SQL Editor → New query** and run each file in `supabase/migrations/` in name order. Both are safe to run again.
 3. **Authentication → Users → Add user**: create a staff login (email + password, tick *Auto confirm*). Make one per staff member, or one shared login.
 4. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up" so nobody else can create a staff account.
 5. **Project Settings → API**: copy the *Project URL* and the *anon public* key.
@@ -37,7 +41,7 @@ export SUPABASE_PROJECT_REF=...    # from https://<ref>.supabase.co
 export STAFF_EMAIL=staff@example.com STAFF_PASSWORD='a-strong-password'
 npm install && npm run setup:supabase
 ```
-This runs the schema and the menu, creates the staff login, turns off sign-ups, writes `.env.local`, and prints the two values for Vercel. Revoke the token afterwards.
+This runs the migrations (tables and starting menu), creates the staff login, turns off sign-ups, writes `.env.local`, and prints the two values for Vercel. Revoke the token afterwards.
 
 ### 2. Vercel
 1. **Add New → Project**, then import this GitHub repo.
@@ -58,7 +62,7 @@ npm run dev                  # http://localhost:3000 and /staff
 | Colors & fonts | top of `app/globals.css` (`:root` tokens) and the Google Fonts link in `app/layout.tsx` (Montserrat, Inter, Allura script, Noto Sans Thai) |
 | Cat illustration | `components/Cat.tsx` |
 | Logo / favicon | `public/logo.png` and `app/icon.png` (taken from the printed menu) |
-| Menu items (name, Thai name, description, price, photo) | `supabase/seed.sql`, or edit directly in Supabase **Table Editor → menu_items** |
+| Menu items (name, Thai name, description, price, photo) | Supabase **Table Editor → menu_items** (live). The starting menu is in `supabase/migrations/…_menu.sql`. |
 | Hot / Iced prices | `price_hot` and `price_iced` columns. Fill one or both and customers choose. Leave both empty to use the single `price`. |
 | Category order | `CATEGORY_ORDER` in `lib/types.ts` |
 | Food photos | `public/menu/*.jpg`, linked from `image_url` as `/menu/latte.jpg`. You can also upload a photo to Supabase Storage and paste its public URL. |
@@ -67,3 +71,6 @@ npm run dev                  # http://localhost:3000 and /staff
 - Customers can only **read the menu** and **place orders** through the `place_order` database function. Prices are looked up on the server, so totals can't be tampered with. Customers can't see other people's orders.
 - Everything else needs a staff login (Row Level Security).
 - Days and months in reports follow the time zone of the device viewing them.
+
+## Changing the database later
+Add a new file in `supabase/migrations/` named `YYYYMMDDHHMMSS_what_changed.sql`. Never edit a migration that has already run. Merge it to `main` and Supabase applies it.
