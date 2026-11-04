@@ -47,7 +47,7 @@ npm run dev                  # http://localhost:3000 and /staff
 | Name, tagline, Instagram, currency symbol | `lib/brand.ts` |
 | Colors & fonts | top of `app/globals.css` (`:root` tokens) and the Google Fonts link in `app/layout.tsx` (Montserrat, Inter, Allura script, Noto Sans Thai) |
 | Cat illustration | `components/Cat.tsx` |
-| Logo / favicon | `public/logo.svg` and `app/icon.svg` |
+| Logo / favicon | `public/logo.png` and `app/icon.png` (taken from the printed menu) |
 | Menu items (name, Thai name, description, price, photo) | `supabase/seed.sql`, or edit directly in Supabase **Table Editor → menu_items** |
 | Hot / Iced prices | `price_hot` and `price_iced` columns. Fill one or both and customers choose. Leave both empty to use the single `price`. |
 | Category order | `CATEGORY_ORDER` in `lib/types.ts` |

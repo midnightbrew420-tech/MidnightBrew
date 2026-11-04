@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------
 // BRANDING — edit this file (plus colors in app/globals.css and
-// /public/logo.svg) to match the physical menu.
+// /public/logo.png) to match the physical menu.
 // ---------------------------------------------------------------
 export const BRAND = {
   name: "Midnight Brew",

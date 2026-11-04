@@ -143,7 +143,7 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
         <div className="row between wrap">
           <div className="brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="" style={{ width: 40, height: 40 }} />
+            <img src="/logo.png" alt="" style={{ width: 40, height: 40 }} />
             <div>
               <h2 style={{ fontSize: 22 }}>{BRAND.name}</h2>
               <div className="muted small">{mode === "day" ? "Daily" : "Monthly"} sales report</div>

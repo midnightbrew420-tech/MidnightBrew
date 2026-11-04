@@ -178,7 +178,7 @@ export default function CustomerMenu() {
         <div style={{ maxWidth: 728, margin: "0 auto" }}>
           <div className="brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" alt="" />
+            <img src="/logo.png" alt="" />
             <div>
               <h1>{BRAND.name}</h1>
               <div className="tag">{BRAND.tagline}</div>

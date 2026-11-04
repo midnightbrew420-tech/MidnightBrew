@@ -65,7 +65,7 @@ function Login() {
     >
       <div className="brand" style={{ justifyContent: "center", marginBottom: 8 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="" />
+        <img src="/logo.png" alt="" />
         <div>
           <h1>{BRAND.name}</h1>
           <div className="tag">Staff</div>
@@ -183,7 +183,7 @@ function Dashboard({ email }: { email: string }) {
     <div className="staff">
       <div className="staff-top">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.svg" alt="" />
+        <img src="/logo.png" alt="" />
         <strong className="display" style={{ fontSize: 18 }}>{BRAND.name}</strong>
         <span className="grow" />
         <button className="btn" onClick={() => setShowQr(true)}>QR code</button>
@@ -256,7 +256,7 @@ function notify(o: Order) {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     const n = new Notification(`New order — ${o.customer_name}`, {
       body: (o.order_items ?? []).map((i) => `${i.qty}× ${i.name}`).join(", ") || `Order #${o.order_no}`,
-      icon: "/logo.svg",
+      icon: "/logo.png",
       tag: o.id,
       requireInteraction: true, // stays on screen until staff click it
     });
