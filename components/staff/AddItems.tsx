@@ -2,11 +2,11 @@
 import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { STAFF_ORDER_PAYMENTS, PAYMENT_LABELS, money } from "@/lib/brand";
-import type { MenuItem } from "@/lib/types";
+import { MenuItem, Variant, cartKey, lineName, priceOptions } from "@/lib/types";
 import PayPicker from "./PayPicker";
 import Thumb from "@/components/Thumb";
 
-type Line = { item: MenuItem; qty: number };
+type Line = { item: MenuItem; variant: Variant; price: number; qty: number };
 
 export default function AddItems({ menu, onDone }: { menu: MenuItem[]; onDone: () => void }) {
   const [q, setQ] = useState("");
@@ -23,22 +23,25 @@ export default function AddItems({ menu, onDone }: { menu: MenuItem[]; onDone: (
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return menu.filter((m) => !s || m.name.toLowerCase().includes(s) || m.category.toLowerCase().includes(s));
+    return menu.filter(
+      (m) => !s || m.name.toLowerCase().includes(s) || (m.name_th ?? "").includes(s) || m.category.toLowerCase().includes(s)
+    );
   }, [menu, q]);
 
   const list = Object.values(lines);
-  const subtotal = list.reduce((s, l) => s + l.qty * Number(l.item.price), 0);
+  const subtotal = list.reduce((s, l) => s + l.qty * l.price, 0);
   const v = Math.max(0, Number(adjValue) || 0);
   const adjAbs = Math.round((adjUnit === "percent" ? (subtotal * Math.min(v, 100)) / 100 : v) * 100) / 100;
   const adjustment = adjType === "discount" ? -Math.min(adjAbs, subtotal) : adjAbs;
   const total = Math.max(0, subtotal + adjustment);
 
-  const add = (m: MenuItem, d: number) =>
+  const add = (m: MenuItem, variant: Variant, price: number, d: number) =>
     setLines((ls) => {
       const n = { ...ls };
-      const qty = (n[m.id]?.qty ?? 0) + d;
-      if (qty <= 0) delete n[m.id];
-      else n[m.id] = { item: m, qty };
+      const k = cartKey(m.id, variant);
+      const qty = (n[k]?.qty ?? 0) + d;
+      if (qty <= 0) delete n[k];
+      else n[k] = { item: m, variant, price, qty };
       return n;
     });
 
@@ -84,10 +87,11 @@ export default function AddItems({ menu, onDone }: { menu: MenuItem[]; onDone: (
       list.map((l) => ({
         order_id: order.id,
         menu_item_id: l.item.id,
-        name: l.item.name,
-        unit_price: l.item.price,
+        name: lineName(l.item, l.variant),
+        variant: l.variant || null,
+        unit_price: l.price,
         qty: l.qty,
-        line_total: Number(l.item.price) * l.qty,
+        line_total: l.price * l.qty,
       }))
     );
     if (e2) {
@@ -107,25 +111,38 @@ export default function AddItems({ menu, onDone }: { menu: MenuItem[]; onDone: (
         <input placeholder="Search menu…" value={q} onChange={(e) => setQ(e.target.value)} type="search" />
         <div style={{ marginTop: 8 }}>
           {shown.map((m) => (
-            <div className="line" key={m.id} style={{ opacity: m.available ? 1 : 0.5 }}>
+            <div className="line" key={m.id} style={{ opacity: m.available ? 1 : 0.5, alignItems: "flex-start" }}>
               <Thumb item={m} size={40} />
               <div className="grow">
                 <div style={{ fontWeight: 600 }}>{m.name}</div>
                 <div className="muted small">
-                  {m.category} · {money(m.price)} {!m.available && "· sold out"}
+                  {m.category} {!m.available && "· sold out"}
                 </div>
               </div>
-              {lines[m.id] ? (
-                <span className="qty">
-                  <button className="icon-btn" onClick={() => add(m, -1)}>−</button>
-                  {lines[m.id].qty}
-                  <button className="icon-btn" onClick={() => add(m, 1)}>+</button>
-                </span>
-              ) : (
-                <button className="btn" style={{ padding: "6px 12px" }} onClick={() => add(m, 1)}>
-                  Add
-                </button>
-              )}
+              <div className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
+                {priceOptions(m).map((o) => {
+                  const k = cartKey(m.id, o.variant);
+                  return (
+                    <div className="row" key={k} style={{ gap: 8 }}>
+                      <span className="small">
+                        {o.label && <span className="muted">{o.label} </span>}
+                        {money(o.price)}
+                      </span>
+                      {lines[k] ? (
+                        <span className="qty">
+                          <button className="icon-btn" onClick={() => add(m, o.variant, o.price, -1)}>−</button>
+                          {lines[k].qty}
+                          <button className="icon-btn" onClick={() => add(m, o.variant, o.price, 1)}>+</button>
+                        </span>
+                      ) : (
+                        <button className="btn btn-sm" onClick={() => add(m, o.variant, o.price, 1)}>
+                          Add
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -135,11 +152,11 @@ export default function AddItems({ menu, onDone }: { menu: MenuItem[]; onDone: (
         <h3>Ticket</h3>
         {list.length === 0 && <div className="muted small">No items yet.</div>}
         {list.map((l) => (
-          <div className="row between small" key={l.item.id}>
+          <div className="row between small" key={cartKey(l.item.id, l.variant)}>
             <span>
-              {l.qty}× {l.item.name}
+              {l.qty}× {lineName(l.item, l.variant)}
             </span>
-            <span>{money(l.qty * Number(l.item.price))}</span>
+            <span>{money(l.qty * l.price)}</span>
           </div>
         ))}
         <input placeholder="Customer name (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />

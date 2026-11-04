@@ -1,5 +1,5 @@
 -- =====================================================================
--- Midnight Brew — database schema
+-- Midnight Brew — database schema (safe to re-run)
 -- Run this once in Supabase → SQL Editor → New query → Run.
 -- Then run seed.sql to load the menu.
 -- =====================================================================
@@ -54,6 +54,14 @@ create table if not exists public.order_items (
   line_total   numeric(10,2) not null
 );
 
+-- Hot / Iced pricing. When price_hot or price_iced is set, customers pick
+-- the version; otherwise the single "price" is used. "price" is also the
+-- lowest price, for sorting.
+alter table public.menu_items add column if not exists name_th    text;
+alter table public.menu_items add column if not exists price_hot  numeric(10,2);
+alter table public.menu_items add column if not exists price_iced numeric(10,2);
+alter table public.order_items add column if not exists variant   text;
+
 create index if not exists orders_status_idx  on public.orders(status);
 create index if not exists orders_created_idx on public.orders(created_at);
 create index if not exists orders_paid_idx    on public.orders(paid_at);
@@ -85,7 +93,7 @@ create policy "staff manage order items" on public.order_items
   for all to authenticated using (true) with check (true);
 
 -- ---------- Customer: place an order ----------
--- items: [{ "id": "<menu_item uuid>", "qty": 2 }, ...]
+-- items: [{ "id": "<menu_item uuid>", "variant": "hot" | "iced" | null, "qty": 2 }, ...]
 create or replace function public.place_order(p_customer_name text, p_items jsonb, p_note text default null)
 returns table (id uuid, order_no bigint, total numeric)
 language plpgsql
@@ -111,14 +119,30 @@ begin
   returning orders.id, orders.order_no into v_order_id, v_order_no;
 
   for v_item in
-    select m.id, m.name, m.price, least(greatest((x->>'qty')::int, 1), 50) as qty
-    from jsonb_array_elements(p_items) x
-    join menu_items m on m.id = (x->>'id')::uuid
-    where m.available = true
+    select * from (
+      select m.id,
+             m.name || case v.variant when 'hot' then ' (Hot)' when 'iced' then ' (Iced)' else '' end as name,
+             nullif(v.variant, '') as variant,
+             case v.variant
+               when 'hot'  then m.price_hot
+               when 'iced' then m.price_iced
+               else case when m.price_hot is null and m.price_iced is null then m.price end
+             end as unit_price,
+             v.qty
+      from (
+        select (x->>'id')::uuid as id,
+               lower(coalesce(x->>'variant', '')) as variant,
+               least(greatest(coalesce((x->>'qty')::int, 1), 1), 50) as qty
+        from jsonb_array_elements(p_items) x
+      ) v
+      join menu_items m on m.id = v.id
+      where m.available = true
+    ) q
+    where q.unit_price is not null
   loop
-    insert into order_items (order_id, menu_item_id, name, unit_price, qty, line_total)
-    values (v_order_id, v_item.id, v_item.name, v_item.price, v_item.qty, v_item.price * v_item.qty);
-    v_subtotal := v_subtotal + v_item.price * v_item.qty;
+    insert into order_items (order_id, menu_item_id, name, variant, unit_price, qty, line_total)
+    values (v_order_id, v_item.id, v_item.name, v_item.variant, v_item.unit_price, v_item.qty, v_item.unit_price * v_item.qty);
+    v_subtotal := v_subtotal + v_item.unit_price * v_item.qty;
     v_count := v_count + 1;
   end loop;
 

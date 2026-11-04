@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { BRAND, money } from "@/lib/brand";
-import { MenuItem, sortMenu } from "@/lib/types";
+import { MenuItem, Variant, cartKey, lineName, parseKey, priceOptions, sortMenu } from "@/lib/types";
 import Thumb from "@/components/Thumb";
+import Cat from "@/components/Cat";
 
-type Cart = Record<string, number>; // menu_item_id -> qty
+type Cart = Record<string, number>; // "<menu_item_id>|<hot|iced|>" -> qty
 type Placed = { id: string; order_no: number; total: number; name: string };
 
-const CART_KEY = "mb_cart";
+const CART_KEY = "mb_cart_v2";
 const NAME_KEY = "mb_name";
 const LAST_KEY = "mb_last_order";
 
@@ -97,7 +98,11 @@ export default function CustomerMenu() {
     return menu.filter(
       (m) =>
         (cat === "All" || m.category === cat) &&
-        (!q || m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q) || m.category.toLowerCase().includes(q))
+        (!q ||
+          m.name.toLowerCase().includes(q) ||
+          (m.name_th ?? "").includes(q) ||
+          m.description.toLowerCase().includes(q) ||
+          m.category.toLowerCase().includes(q))
     );
   }, [menu, query, cat]);
 
@@ -108,17 +113,22 @@ export default function CustomerMenu() {
   }, [filtered]);
 
   const cartLines = Object.entries(cart)
-    .filter(([id, q]) => q > 0 && byId[id])
-    .map(([id, q]) => ({ item: byId[id], qty: q }));
+    .map(([key, qty]) => {
+      const { id, variant } = parseKey(key);
+      const item = byId[id];
+      const opt = item && priceOptions(item).find((o) => o.variant === variant);
+      return item && opt && qty > 0 ? { key, item, variant, qty, price: opt.price } : null;
+    })
+    .filter((l): l is { key: string; item: MenuItem; variant: Variant; qty: number; price: number } => !!l);
   const cartCount = cartLines.reduce((s, l) => s + l.qty, 0);
-  const cartTotal = cartLines.reduce((s, l) => s + l.qty * Number(l.item.price), 0);
+  const cartTotal = cartLines.reduce((s, l) => s + l.qty * l.price, 0);
   const unavailableInCart = cartLines.filter((l) => !l.item.available);
 
-  const setQty = (id: string, q: number) =>
+  const setQty = (key: string, q: number) =>
     setCart((c) => {
       const n = { ...c };
-      if (q <= 0) delete n[id];
-      else n[id] = Math.min(q, 50);
+      if (q <= 0) delete n[key];
+      else n[key] = Math.min(q, 50);
       return n;
     });
 
@@ -136,7 +146,7 @@ export default function CustomerMenu() {
     save(NAME_KEY, name.trim());
     const { data, error } = await supabase().rpc("place_order", {
       p_customer_name: name.trim(),
-      p_items: cartLines.map((l) => ({ id: l.item.id, qty: l.qty })),
+      p_items: cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, qty: l.qty })),
       p_note: note.trim() || null,
     });
     setPlacing(false);
@@ -173,6 +183,8 @@ export default function CustomerMenu() {
               <h1>{BRAND.name}</h1>
               <div className="tag">{BRAND.tagline}</div>
             </div>
+            <span className="grow" />
+            <Cat className="brand-cat" />
           </div>
           <div className="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -235,31 +247,49 @@ export default function CustomerMenu() {
             <h2 className="cat-title">{category}</h2>
             <div className="items">
               {items.map((m) => {
-                const q = cart[m.id] || 0;
+                const opts = priceOptions(m);
                 return (
                   <article key={m.id} className={`card item ${m.available ? "" : "off"}`}>
                     <Thumb item={m} />
                     <div className="item-body">
                       <div className="item-name">{m.name}</div>
+                      {m.name_th && <div className="item-th">{m.name_th}</div>}
                       <div className="item-desc">{m.description}</div>
-                      <div className="item-foot">
-                        <span className="price">{money(m.price)}</span>
+                      <div className="opts">
                         {!m.available ? (
                           <span className="pill">Sold out</span>
-                        ) : q === 0 ? (
-                          <button className="btn btn-primary" style={{ padding: "6px 14px" }} onClick={() => setQty(m.id, 1)}>
-                            Add
-                          </button>
                         ) : (
-                          <span className="qty">
-                            <button className="icon-btn" onClick={() => setQty(m.id, q - 1)} aria-label="Remove one">
-                              −
-                            </button>
-                            {q}
-                            <button className="icon-btn" onClick={() => setQty(m.id, q + 1)} aria-label="Add one">
-                              +
-                            </button>
-                          </span>
+                          opts.map((o) => {
+                            const key = cartKey(m.id, o.variant);
+                            const q = cart[key] || 0;
+                            return (
+                              <div className="opt" key={key}>
+                                <span className="opt-label">
+                                  {o.label && <span className="muted">{o.label} </span>}
+                                  <span className="price">{money(o.price)}</span>
+                                </span>
+                                {q === 0 ? (
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => setQty(key, 1)}
+                                    aria-label={`Add ${lineName(m, o.variant)}`}
+                                  >
+                                    Add
+                                  </button>
+                                ) : (
+                                  <span className="qty">
+                                    <button className="icon-btn" onClick={() => setQty(key, q - 1)} aria-label="Remove one">
+                                      −
+                                    </button>
+                                    {q}
+                                    <button className="icon-btn" onClick={() => setQty(key, q + 1)} aria-label="Add one">
+                                      +
+                                    </button>
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -269,6 +299,17 @@ export default function CustomerMenu() {
             </div>
           </section>
         ))}
+
+        {!loading && !loadError && (
+          <footer className="cust-footer">
+            <div className="small">Thank you for supporting local &amp; happy people.</div>
+            <div className="script">See you at Midnight.</div>
+            <a href={BRAND.instagramUrl} target="_blank" rel="noreferrer">
+              {BRAND.instagram}
+            </a>
+            <div className="footer-line">COFFEE | FRIENDS | MIDNIGHT</div>
+          </footer>
+        )}
       </main>
 
       {cartCount > 0 && !showCart && (
@@ -290,25 +331,25 @@ export default function CustomerMenu() {
               </button>
             </div>
             {cartLines.length === 0 && <div className="empty">Your cart is empty.</div>}
-            {cartLines.map(({ item, qty }) => (
-              <div className="line" key={item.id}>
+            {cartLines.map(({ key, item, variant, qty, price }) => (
+              <div className="line" key={key}>
                 <Thumb item={item} size={48} />
                 <div className="grow">
-                  <div style={{ fontWeight: 600 }}>{item.name}</div>
+                  <div style={{ fontWeight: 600 }}>{lineName(item, variant)}</div>
                   <div className="muted small">
-                    {money(item.price)} each{!item.available && <span className="error"> · sold out</span>}
+                    {money(price)} each{!item.available && <span className="error"> · sold out</span>}
                   </div>
                 </div>
                 <span className="qty">
-                  <button className="icon-btn" onClick={() => setQty(item.id, qty - 1)}>
+                  <button className="icon-btn" onClick={() => setQty(key, qty - 1)}>
                     −
                   </button>
                   {qty}
-                  <button className="icon-btn" onClick={() => setQty(item.id, qty + 1)} disabled={!item.available}>
+                  <button className="icon-btn" onClick={() => setQty(key, qty + 1)} disabled={!item.available}>
                     +
                   </button>
                 </span>
-                <div style={{ width: 70, textAlign: "right", fontWeight: 600 }}>{money(qty * Number(item.price))}</div>
+                <div style={{ width: 64, textAlign: "right", fontWeight: 600 }}>{money(qty * price)}</div>
               </div>
             ))}
             <div className="total-row">

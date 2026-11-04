@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/brand";
-import type { MenuItem } from "@/lib/types";
+import { MenuItem, priceOptions } from "@/lib/types";
 import Thumb from "@/components/Thumb";
 
 export default function MenuToggle({ menu, onChanged }: { menu: MenuItem[]; onChanged: () => void }) {
@@ -33,7 +33,7 @@ export default function MenuToggle({ menu, onChanged }: { menu: MenuItem[]; onCh
       {err && <div className="error">{err}</div>}
       {Object.entries(groups).map(([cat, items]) => (
         <div key={cat} className="card" style={{ padding: "4px 14px" }}>
-          <h3 style={{ margin: "12px 0 4px", color: "var(--accent)" }}>{cat}</h3>
+          <h3 style={{ margin: "12px 0 4px", textTransform: "uppercase", letterSpacing: "0.12em", fontSize: 15 }}>{cat}</h3>
           {items.map((m) => {
             const on = pending[m.id] ?? m.available;
             return (
@@ -41,7 +41,10 @@ export default function MenuToggle({ menu, onChanged }: { menu: MenuItem[]; onCh
                 <Thumb item={m} size={40} />
                 <div className="grow">
                   <div style={{ fontWeight: 600 }}>{m.name}</div>
-                  <div className="muted small">{money(m.price)} · {on ? "Available" : "Sold out"}</div>
+                  <div className="muted small">
+                    {priceOptions(m).map((o) => `${o.label ? o.label + " " : ""}${money(o.price)}`).join(" / ")} ·{" "}
+                    {on ? "Available" : "Sold out"}
+                  </div>
                 </div>
                 <span className="switch">
                   <input type="checkbox" checked={on} onChange={() => toggle(m)} />

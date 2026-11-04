@@ -4,7 +4,9 @@
 // ---------------------------------------------------------------
 export const BRAND = {
   name: "Midnight Brew",
-  tagline: "Coffee & kitchen, after dark",
+  tagline: "Good coffee. Late nights. Good vibes.",
+  instagram: "@midnightbrew.bkk",
+  instagramUrl: "https://instagram.com/midnightbrew.bkk",
   currency: "฿", // shown before every price
   currencyDecimals: 0,
 };

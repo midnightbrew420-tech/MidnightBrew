@@ -10,7 +10,7 @@ export default function QrModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     const u = window.location.origin + "/";
     setUrl(u);
-    QRCode.toDataURL(u, { width: 900, margin: 2, color: { dark: "#0f1424", light: "#ffffff" } }).then(setImg);
+    QRCode.toDataURL(u, { width: 900, margin: 2, color: { dark: "#111111", light: "#ffffff" } }).then(setImg);
   }, []);
 
   return (

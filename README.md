@@ -1,5 +1,7 @@
 # Midnight Brew — QR ordering
 
+*Good coffee. Late nights. Good vibes.* · [@midnightbrew.bkk](https://instagram.com/midnightbrew.bkk)
+
 A link between customers and staff: **no payments happen in the app**. It handles orders, staff workflow and sales reports.
 
 | URL | Who | What |
@@ -22,7 +24,7 @@ A link between customers and staff: **no payments happen in the app**. It handle
 
 ### 1. Supabase
 1. Create a project at supabase.com.
-2. **SQL Editor → New query**: paste `supabase/schema.sql` and **Run**. Then do the same with `supabase/seed.sql` (the menu).
+2. **SQL Editor → New query**: paste `supabase/schema.sql` and **Run**. Then do the same with `supabase/seed.sql` (the menu). Running `schema.sql` again later is safe. Running `seed.sql` again resets the menu but keeps orders.
 3. **Authentication → Users → Add user**: create a staff login (email + password, tick *Auto confirm*). Make one per staff member, or one shared login.
 4. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up" so nobody else can create a staff account.
 5. **Project Settings → API**: copy the *Project URL* and the *anon public* key.
@@ -42,12 +44,14 @@ npm run dev                  # http://localhost:3000 and /staff
 ## Branding & menu: where to change things
 | What | File |
 |---|---|
-| Name, tagline, currency symbol | `lib/brand.ts` |
-| Colors & fonts | top of `app/globals.css` (`:root` tokens) and the Google Fonts link in `app/layout.tsx` |
+| Name, tagline, Instagram, currency symbol | `lib/brand.ts` |
+| Colors & fonts | top of `app/globals.css` (`:root` tokens) and the Google Fonts link in `app/layout.tsx` (Montserrat, Inter, Allura script, Noto Sans Thai) |
+| Cat illustration | `components/Cat.tsx` |
 | Logo / favicon | `public/logo.svg` and `app/icon.svg` |
-| Menu items (name, description, price, category, photo) | `supabase/seed.sql`, or edit directly in Supabase **Table Editor → menu_items** |
+| Menu items (name, Thai name, description, price, photo) | `supabase/seed.sql`, or edit directly in Supabase **Table Editor → menu_items** |
+| Hot / Iced prices | `price_hot` and `price_iced` columns. Fill one or both and customers choose. Leave both empty to use the single `price`. |
 | Category order | `CATEGORY_ORDER` in `lib/types.ts` |
-| Food photos | put files in `public/menu/` and set `image_url` to `/menu/latte.jpg`, or upload to Supabase Storage and paste the public URL |
+| Food photos | `public/menu/*.jpg`, linked from `image_url` as `/menu/latte.jpg`. You can also upload a photo to Supabase Storage and paste its public URL. |
 
 ## Security notes
 - Customers can only **read the menu** and **place orders** through the `place_order` database function. Prices are looked up on the server, so totals can't be tampered with. Customers can't see other people's orders.
