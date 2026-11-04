@@ -29,6 +29,16 @@ A link between customers and staff: **no payments happen in the app**. It handle
 4. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up" so nobody else can create a staff account.
 5. **Project Settings → API**: copy the *Project URL* and the *anon public* key.
 
+### 1b. Or: do steps 2–4 with one command
+Create the project (step 1), then on any computer with Node.js:
+```bash
+export SUPABASE_ACCESS_TOKEN=...   # supabase.com/dashboard/account/tokens
+export SUPABASE_PROJECT_REF=...    # from https://<ref>.supabase.co
+export STAFF_EMAIL=staff@example.com STAFF_PASSWORD='a-strong-password'
+npm install && npm run setup:supabase
+```
+This runs the schema and the menu, creates the staff login, turns off sign-ups, writes `.env.local`, and prints the two values for Vercel. Revoke the token afterwards.
+
 ### 2. Vercel
 1. **Add New → Project**, then import this GitHub repo.
 2. Add the environment variables `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (values from step 1.5).
