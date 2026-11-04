@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Midnight Brew">
+  <circle cx="60" cy="60" r="58" fill="#141a2e" stroke="#d9a441" stroke-width="3"/>
+  <path d="M74 22a30 30 0 1 0 22 46a24 24 0 1 1-22-46z" fill="#d9a441"/>
+  <g fill="#f3e9d7">
+    <circle cx="30" cy="30" r="1.8"/><circle cx="42" cy="20" r="1.2"/><circle cx="24" cy="48" r="1.2"/>
+  </g>
+  <path d="M34 66h40v10a18 18 0 0 1-18 18h-4a18 18 0 0 1-18-18z" fill="#f3e9d7"/>
+  <path d="M74 70h4a7 7 0 0 1 0 14h-5" fill="none" stroke="#f3e9d7" stroke-width="4"/>
+  <path d="M46 60c-3-4 3-6 0-10M56 60c-3-4 3-6 0-10M66 60c-3-4 3-6 0-10" fill="none" stroke="#f3e9d7" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
