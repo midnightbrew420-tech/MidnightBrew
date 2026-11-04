@@ -19,7 +19,7 @@ values
   ('Coffee', 50, 'Cappuccino',        null, 'Espresso, steamed milk and a thick layer of foam.',            55,  55,  65, null),
   ('Coffee', 60, 'Vanilla Latte',     null, 'Our latte sweetened with vanilla.',                            65,  65,  75, '/menu/vanilla-latte.jpg'),
   ('Coffee', 70, 'Americano Yuzu',    null, 'Americano with bright, citrusy yuzu.',                         85, null, null, null),
-  ('Coffee', 80, 'Americano Orange',  null, 'Americano with fresh orange.',                                 85, null, null, null),
+  ('Coffee', 80, 'Americano Orange',  null, 'Americano with fresh orange.',                                 85, null, null, '/menu/americano-orange.jpg'),
   ('Coffee', 90, 'Coconut Americano', null, 'Americano with coconut water.',                               85, null, null, null),
 
   -- NON-COFFEE
