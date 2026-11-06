@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+<rect width="200" height="200" fill="#f2efe8"/>
+<g fill="none" stroke="#111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+
+<path d="M60 70 L80 44 L120 44 L140 70 L140 176 L60 176 Z" fill="#fff"/>
+<path d="M60 70 L140 70 M80 44 L100 70 L120 44"/>
+<rect x="72" y="100" width="56" height="40" rx="6" fill="#efe3c8" stroke-width="2.5"/>
+<text x="100" y="128" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="800" font-size="20" fill="#111" stroke="none">OAT</text>
+<path d="M150 176 L150 64" stroke-width="3"/><ellipse cx="144" cy="70" rx="4" ry="7" transform="rotate(-30 144 70)" fill="#d9a441" stroke-width="2"/><ellipse cx="156" cy="82" rx="4" ry="7" transform="rotate(30 156 82)" fill="#d9a441" stroke-width="2"/><ellipse cx="144" cy="94" rx="4" ry="7" transform="rotate(-30 144 94)" fill="#d9a441" stroke-width="2"/><ellipse cx="156" cy="106" rx="4" ry="7" transform="rotate(30 156 106)" fill="#d9a441" stroke-width="2"/><ellipse cx="144" cy="118" rx="4" ry="7" transform="rotate(-30 144 118)" fill="#d9a441" stroke-width="2"/>
+</g></svg>
