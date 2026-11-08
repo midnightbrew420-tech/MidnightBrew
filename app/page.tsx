@@ -16,10 +16,13 @@ type Line = { key: string; item: MenuItem; variant: Variant; sugar: number | nul
 type Picker = { item: MenuItem; variant: Variant; price: number };
 
 const CART_KEY = "mb_cart_v3";
-// The order this phone is waiting for (its id only: no name, no items), so it can tell the customer when it's ready.
+// The order this tab is waiting for (its id only: no name, no items), so it can tell the customer when it's ready.
+// Kept in this browser tab only, like the name.
 const WAIT_KEY = "mb_waiting_order";
+// The customer's name for this visit. Kept only in this browser tab (forgotten when it closes).
+const GUEST_KEY = "mb_guest_name";
 // Older versions saved the customer's name and last order on the phone; these are cleared on load.
-const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2"];
+const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2", "mb_waiting_order"];
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -28,6 +31,20 @@ function load<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+function loadTab<T>(key: string, fallback: T): T {
+  try {
+    const v = sessionStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveTab(key: string, v: unknown) {
+  try {
+    if (v == null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify(v));
+  } catch {}
 }
 function save(key: string, v: unknown) {
   try {
@@ -43,6 +60,7 @@ export default function CustomerMenu() {
   const [cat, setCat] = useState("All");
   const [cart, setCart] = useState<Cart>({});
   const [name, setName] = useState("");
+  const [entered, setEntered] = useState<boolean | null>(null); // null until we've checked this tab
   const [note, setNote] = useState("");
   const [showCart, setShowCart] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -58,7 +76,14 @@ export default function CustomerMenu() {
   // Load menu + keep availability live
   useEffect(() => {
     setCart(load(CART_KEY, {}));
-    const w = load<{ id: string } | null>(WAIT_KEY, null);
+    try {
+      const g = sessionStorage.getItem(GUEST_KEY);
+      if (g) setName(g);
+      setEntered(!!g);
+    } catch {
+      setEntered(false);
+    }
+    const w = loadTab<{ id: string } | null>(WAIT_KEY, null);
     if (w?.id) setWaiting({ id: w.id, status: "new" });
     try {
       OLD_KEYS.forEach((k) => localStorage.removeItem(k));
@@ -108,7 +133,7 @@ export default function CustomerMenu() {
       }
       last = data;
       if (["paid", "cancelled", "unpaid"].includes(data)) {
-        save(WAIT_KEY, null);
+        saveTab(WAIT_KEY, null);
         setWaiting(null);
         return;
       }
@@ -180,7 +205,7 @@ export default function CustomerMenu() {
   const placeOrder = async () => {
     setError("");
     if (!name.trim()) {
-      setError("Please enter your name so we can call you.");
+      setEntered(false);
       return;
     }
     if (unavailableInCart.length) {
@@ -203,15 +228,56 @@ export default function CustomerMenu() {
     const row = Array.isArray(data) ? data[0] : data;
     setSent({ total: Number(row?.total ?? cartTotal) });
     if (row?.id) {
-      save(WAIT_KEY, { id: row.id });
+      saveTab(WAIT_KEY, { id: row.id });
       setReadyAlert(false);
       setWaiting({ id: row.id, status: "new" });
     }
     setCart({});
-    setName("");
     setNote("");
     setShowCart(false);
   };
+
+  const enter = (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = name.trim().slice(0, 60);
+    if (!n) return;
+    setName(n);
+    try {
+      sessionStorage.setItem(GUEST_KEY, n);
+    } catch {}
+    setEntered(true);
+  };
+
+  if (entered === null) return null; // checking this tab for a name; avoids a flash of the wrong screen
+
+  if (!entered)
+    return (
+      <main className="welcome">
+        <form className="welcome-card" onSubmit={enter}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt={BRAND.name} className="welcome-logo" />
+          <h1>{BRAND.name}</h1>
+          <p className="tag">{BRAND.tagline}</p>
+          <label htmlFor="guest-name" className="welcome-label">
+            What&apos;s your name?
+          </label>
+          <input
+            id="guest-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+            placeholder="e.g. Aung"
+            autoComplete="given-name"
+            autoFocus
+          />
+          <button className="btn btn-primary btn-block" disabled={!name.trim()}>
+            See the menu
+          </button>
+          <p className="muted small">We&apos;ll call this name when your order is ready.</p>
+        </form>
+        <Cat className="brand-cat" />
+      </main>
+    );
 
   return (
     <>
@@ -236,6 +302,12 @@ export default function CustomerMenu() {
                 <circle cx="17" cy="20" r="1.4" />
               </svg>
               {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+            </button>
+          </div>
+          <div className="guest">
+            Ordering as <strong>{name}</strong> ·{" "}
+            <button type="button" className="link-btn" onClick={() => setEntered(false)}>
+              Change
             </button>
           </div>
           <div className="search">
@@ -494,10 +566,9 @@ export default function CustomerMenu() {
               <span className="price">{money(cartTotal)}</span>
             </div>
             <div className="stack">
-              <label className="stack" style={{ gap: 4 }}>
-                <span className="small muted">Your name (we&apos;ll call this out)</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="e.g. Aung" />
-              </label>
+              <div className="small muted">
+                Ordering as <strong style={{ color: "var(--text)" }}>{name}</strong>
+              </div>
               <label className="stack" style={{ gap: 4 }}>
                 <span className="small muted">Note (optional)</span>
                 <textarea

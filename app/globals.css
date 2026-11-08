@@ -287,3 +287,19 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
   display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
   background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; font-weight: 600; white-space: nowrap;
 }
+
+/* customer: name screen before the menu */
+.welcome {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+  padding: 24px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
+}
+.welcome-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.welcome-logo { width: 112px; height: 112px; }
+.welcome-card h1 { font-size: 24px; text-transform: uppercase; letter-spacing: .14em; }
+.welcome-card .tag { margin: 0 0 18px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .16em; }
+.welcome-label { align-self: flex-start; font-weight: 600; }
+.welcome-card input { font-size: 17px; padding: 14px; background: var(--surface); }
+.welcome-card .muted { margin: 4px 0 0; }
+.guest { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.guest strong { color: var(--text); }
+.link-btn { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; font-size: inherit; }
