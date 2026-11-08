@@ -3,7 +3,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ACTIVE_ORDER_PAYMENTS, PAYMENT_LABELS, money } from "@/lib/brand";
 import { dateTimeShort } from "@/lib/dates";
-import type { Order } from "@/lib/types";
+import { Order, sugarLabel } from "@/lib/types";
 import PayPicker from "./PayPicker";
 
 export default function OrderModal({
@@ -35,7 +35,7 @@ export default function OrderModal({
   };
 
   const now = () => new Date().toISOString();
-  const open = order.status === "new" || order.status === "taken" || order.status === "unpaid";
+  const open = ["new", "taken", "ready", "unpaid"].includes(order.status);
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -54,7 +54,10 @@ export default function OrderModal({
           {(order.order_items ?? []).map((li) => (
             <div className="line" key={li.id}>
               <strong style={{ width: 34 }}>{li.qty}×</strong>
-              <span className="grow">{li.name}</span>
+              <span className="grow">
+                {li.name}
+                {li.sugar != null && <span className="sugar-tag">{sugarLabel(li.sugar)}</span>}
+              </span>
               <span>{money(li.line_total)}</span>
             </div>
           ))}
@@ -99,7 +102,16 @@ export default function OrderModal({
               Take order
             </button>
           )}
-          {(order.status === "taken" || order.status === "unpaid") && (
+          {order.status === "taken" && (
+            <button
+              className="btn btn-primary btn-block"
+              disabled={busy}
+              onClick={() => update({ status: "ready", ready_at: now() })}
+            >
+              Ready (tell the customer)
+            </button>
+          )}
+          {(order.status === "ready" || order.status === "unpaid") && (
             <button className="btn btn-ok btn-block" disabled={busy} onClick={() => setPaying(true)}>
               Order paid
             </button>

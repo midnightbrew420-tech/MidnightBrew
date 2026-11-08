@@ -6,12 +6,12 @@ A link between customers and staff: **no payments happen in the app**. It handle
 
 | URL | Who | What |
 |---|---|---|
-| `/` | Customers (via the single QR code) | Menu with prices, search, cart, name + note, place order, live order status |
+| `/` | Customers (via the single QR code) | Menu with prices, search, cart (top right), sugar level for drinks, name + note, place order, "ready" alert on their own phone |
 | `/staff` | Staff (login required) | Active · Add items · Paid/Cancelled · Report · Menu on/off · QR code |
 
 ## How the staff side works
 
-- **Active**: new QR orders show with a ringing alert, a flashing banner, a flashing tab title and a system notification. The alert repeats **until the order is opened**. Open an order and press **Take order**, then **Order paid**, then pick **QR / Cash / Card**. It moves to the report immediately. You can also **Cancel** an order or **Mark unpaid** (customer left).
+- **Active**: new QR orders show with a ringing alert, a flashing banner, a flashing tab title and a system notification. The alert repeats **until the order is opened**. Flow: **Take order**, then **Ready** (the customer's phone shows "Your order is ready", chimes and vibrates, and sends a notification if allowed), then **Order paid** and pick **QR / Cash / Card**. It moves to the report immediately. You can also **Cancel** an order or **Mark unpaid** (customer left).
 - **Add items**: staff build their own order from the menu. You can add a **discount or extra charge** (as an amount or %), pick **QR / Cash / Card / GrabFood**, and charge it. It's recorded as paid right away.
 - **Paid / Cancelled**: history by day, filterable by Paid / Cancelled / Unpaid, searchable by name or order number. Unpaid orders can still be marked paid later.
 - **Report**: daily or monthly. Shows totals by payment method and by menu item, discounts and surcharges, cancelled and unpaid counts, and a day-by-day table for monthly reports. **Export JPG** downloads the report as an image. Use ‹ › to look at earlier days or months.
@@ -74,3 +74,6 @@ npm run dev                  # http://localhost:3000 and /staff
 
 ## Changing the database later
 Add a new file in `supabase/migrations/` named `YYYYMMDDHHMMSS_what_changed.sql`. Never edit a migration that has already run. Merge it to `main` and Supabase applies it.
+
+## Customer "ready" alert
+After ordering, the customer's phone watches only its own order (it keeps just the order id, never the name). When staff press **Ready** it shows a large message, chimes, vibrates and, if the customer allowed notifications, sends one. This works while the menu page is open, including in a background tab. A closed browser can't be reached, and iPhones only show website notifications for sites added to the home screen, so on iPhone the on-screen message and chime are what the customer sees.

@@ -1,11 +1,13 @@
 "use client";
-import type { Order } from "@/lib/types";
+import { Order, sugarLabel } from "@/lib/types";
 import { money } from "@/lib/brand";
 import { minutesAgo } from "@/lib/dates";
 
 export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o: Order) => void }) {
   const fresh = orders.filter((o) => o.status === "new");
   const taken = orders.filter((o) => o.status === "taken");
+  const ready = orders.filter((o) => o.status === "ready");
+  const pillText = (o: Order) => (o.status === "new" ? (o.seen ? "new" : "NEW!") : o.status);
 
   const Card = ({ o }: { o: Order }) => {
     const n = (o.order_items ?? []).reduce((s, i) => s + i.qty, 0);
@@ -13,7 +15,7 @@ export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o
       <button className={`card order-card ${o.status === "new" && !o.seen ? "unseen" : ""}`} onClick={() => onOpen(o)}>
         <div className="row between">
           <span className="order-name">{o.customer_name}</span>
-          <span className={`pill ${o.status}`}>{o.status === "new" ? (o.seen ? "new" : "NEW!") : "taken"}</span>
+          <span className={`pill ${o.status}`}>{pillText(o)}</span>
         </div>
         <div className="muted small" style={{ margin: "4px 0 8px" }}>
           #{o.order_no} · {minutesAgo(o.created_at)}
@@ -22,6 +24,7 @@ export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o
           {(o.order_items ?? []).slice(0, 4).map((i) => (
             <div key={i.id}>
               {i.qty}× {i.name}
+              {i.sugar != null && <span className="sugar-tag">{sugarLabel(i.sugar)}</span>}
             </div>
           ))}
           {(o.order_items?.length ?? 0) > 4 && <div className="muted">+ {(o.order_items?.length ?? 0) - 4} more</div>}
@@ -48,9 +51,17 @@ export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o
         )}
       </section>
       <section>
-        <h3 style={{ marginBottom: 10 }}>Taken — awaiting payment ({taken.length})</h3>
+        <h3 style={{ marginBottom: 10 }}>Taken: being prepared ({taken.length})</h3>
         {taken.length ? (
           <div className="grid-orders">{taken.map((o) => <Card key={o.id} o={o} />)}</div>
+        ) : (
+          <div className="muted small">Nothing being prepared.</div>
+        )}
+      </section>
+      <section>
+        <h3 style={{ marginBottom: 10 }}>Ready: awaiting payment ({ready.length})</h3>
+        {ready.length ? (
+          <div className="grid-orders">{ready.map((o) => <Card key={o.id} o={o} />)}</div>
         ) : (
           <div className="muted small">Nothing awaiting payment.</div>
         )}
