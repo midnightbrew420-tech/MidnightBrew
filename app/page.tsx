@@ -8,11 +8,10 @@ import Thumb from "@/components/Thumb";
 import Cat from "@/components/Cat";
 
 type Cart = Record<string, number>; // "<menu_item_id>|<hot|iced|>" -> qty
-type Placed = { id: string; order_no: number; total: number; name: string };
 
 const CART_KEY = "mb_cart_v2";
-const NAME_KEY = "mb_name";
-const LAST_KEY = "mb_last_order";
+// Older versions saved the customer's name and last order on the phone; these are cleared on load.
+const OLD_KEYS = ["mb_name", "mb_last_order"];
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -40,14 +39,15 @@ export default function CustomerMenu() {
   const [showCart, setShowCart] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
-  const [placed, setPlaced] = useState<Placed | null>(null);
-  const [status, setStatus] = useState<string>("");
+  // One-time confirmation after ordering. Nothing about the order is kept on the phone.
+  const [sent, setSent] = useState<{ total: number } | null>(null);
 
   // Load menu + keep availability live
   useEffect(() => {
     setCart(load(CART_KEY, {}));
-    setName(load(NAME_KEY, ""));
-    setPlaced(load(LAST_KEY, null));
+    try {
+      OLD_KEYS.forEach((k) => localStorage.removeItem(k));
+    } catch {}
     let db;
     try {
       db = supabase();
@@ -73,22 +73,6 @@ export default function CustomerMenu() {
   }, []);
 
   useEffect(() => save(CART_KEY, cart), [cart]);
-
-  // Poll status of the last placed order so the customer sees progress
-  useEffect(() => {
-    if (!placed) return;
-    let stop = false;
-    const tick = async () => {
-      const { data } = await supabase().rpc("order_status", { p_order_id: placed.id });
-      if (!stop && typeof data === "string") setStatus(data);
-    };
-    tick();
-    const t = setInterval(tick, 10000);
-    return () => {
-      stop = true;
-      clearInterval(t);
-    };
-  }, [placed]);
 
   const byId = useMemo(() => Object.fromEntries(menu.map((m) => [m.id, m])), [menu]);
   const categories = useMemo(() => ["All", ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
@@ -143,7 +127,6 @@ export default function CustomerMenu() {
       return;
     }
     setPlacing(true);
-    save(NAME_KEY, name.trim());
     const { data, error } = await supabase().rpc("place_order", {
       p_customer_name: name.trim(),
       p_items: cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, qty: l.qty })),
@@ -155,21 +138,11 @@ export default function CustomerMenu() {
       return;
     }
     const row = Array.isArray(data) ? data[0] : data;
-    const p: Placed = { id: row.id, order_no: row.order_no, total: Number(row.total), name: name.trim() };
-    setPlaced(p);
-    setStatus("new");
-    save(LAST_KEY, p);
+    setSent({ total: Number(row?.total ?? cartTotal) });
     setCart({});
+    setName("");
     setNote("");
     setShowCart(false);
-  };
-
-  const statusText: Record<string, string> = {
-    new: "Sent! Our staff will be with you shortly.",
-    taken: "Your order has been taken and is being prepared.",
-    paid: "Paid — thank you! Enjoy.",
-    cancelled: "This order was cancelled. Please speak to our staff.",
-    unpaid: "Please see our staff to settle this order.",
   };
 
   return (
@@ -210,32 +183,6 @@ export default function CustomerMenu() {
       </header>
 
       <main className="menu">
-        {placed && status && (
-          <div className="card" style={{ padding: 14, marginTop: 8, borderColor: "var(--accent)" }}>
-            <div className="row between">
-              <strong>
-                Order #{placed.order_no} · {placed.name}
-              </strong>
-              <span className={`pill ${status}`}>{status}</span>
-            </div>
-            <div className="muted small" style={{ marginTop: 4 }}>
-              {statusText[status] ?? ""} Total {money(placed.total)}
-            </div>
-            {(status === "paid" || status === "cancelled") && (
-              <button
-                className="btn btn-ghost small"
-                style={{ marginTop: 8, padding: "4px 0" }}
-                onClick={() => {
-                  setPlaced(null);
-                  save(LAST_KEY, null);
-                }}
-              >
-                Dismiss
-              </button>
-            )}
-          </div>
-        )}
-
         {loading && <div className="empty">Loading menu…</div>}
         {loadError && <div className="empty error">{loadError}</div>}
         {!loading && !loadError && grouped.length === 0 && (
@@ -318,6 +265,24 @@ export default function CustomerMenu() {
             <span>View cart · {cartCount} item{cartCount > 1 ? "s" : ""}</span>
             <span>{money(cartTotal)}</span>
           </button>
+        </div>
+      )}
+
+      {sent && (
+        <div className="overlay" onClick={() => setSent(null)}>
+          <div className="sheet sent" role="alertdialog" aria-labelledby="sent-title" onClick={(e) => e.stopPropagation()}>
+            <div className="sent-mark" aria-hidden>
+              ✓
+            </div>
+            <h2 id="sent-title">Order sent</h2>
+            <p className="muted">
+              Our staff have your order and will be with you shortly. Please pay{" "}
+              <strong className="price">{money(sent.total)}</strong> when they come to you.
+            </p>
+            <button className="btn btn-primary btn-block" onClick={() => setSent(null)} autoFocus>
+              Done
+            </button>
+          </div>
         </div>
       )}
 
