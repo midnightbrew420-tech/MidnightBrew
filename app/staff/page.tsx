@@ -13,6 +13,7 @@ import MenuToggle from "@/components/staff/MenuToggle";
 import OrderModal from "@/components/staff/OrderModal";
 import QrModal from "@/components/staff/QrModal";
 import { audioReady, chime, unlockAudio } from "@/components/staff/alarm";
+import { askNotifications, notify } from "@/lib/notify";
 
 type Tab = "active" | "add" | "history" | "report" | "menu";
 const TABS: { id: Tab; label: string }[] = [
@@ -102,14 +103,14 @@ function Dashboard({ email }: { email: string }) {
     const { data } = await supabase()
       .from("orders")
       .select("*, order_items(*)")
-      .in("status", ["new", "taken"])
+      .in("status", ["new", "taken", "ready"])
       .order("created_at", { ascending: true });
     if (!data) return;
     const list = data as Order[];
     // System notification for orders we haven't seen before
     if (knownIds.current) {
       for (const o of list) {
-        if (o.status === "new" && !knownIds.current.has(o.id)) notify(o);
+        if (o.status === "new" && !knownIds.current.has(o.id)) notifyNewOrder(o);
       }
     }
     knownIds.current = new Set(list.map((o) => o.id));
@@ -175,7 +176,8 @@ function Dashboard({ email }: { email: string }) {
     setSoundOn(unlockAudio());
     chime();
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      setNotifPerm(await Notification.requestPermission());
+      await askNotifications();
+      setNotifPerm(Notification.permission);
     }
   };
 
@@ -251,18 +253,7 @@ function Dashboard({ email }: { email: string }) {
   );
 }
 
-function notify(o: Order) {
-  try {
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    const n = new Notification(`New order — ${o.customer_name}`, {
-      body: (o.order_items ?? []).map((i) => `${i.qty}× ${i.name}`).join(", ") || `Order #${o.order_no}`,
-      icon: "/logo.png",
-      tag: o.id,
-      requireInteraction: true, // stays on screen until staff click it
-    });
-    n.onclick = () => {
-      window.focus();
-      n.close();
-    };
-  } catch {}
+function notifyNewOrder(o: Order) {
+  const items = (o.order_items ?? []).map((i) => `${i.qty}× ${i.name}`).join(", ");
+  notify(`New order: ${o.customer_name}`, items || `Order #${o.order_no}`, o.id);
 }

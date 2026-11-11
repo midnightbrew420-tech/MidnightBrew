@@ -3,16 +3,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { BRAND, money } from "@/lib/brand";
-import { MenuItem, Variant, cartKey, lineName, parseKey, priceOptions, sortMenu } from "@/lib/types";
+import {
+  DEFAULT_SUGAR, MenuItem, SUGAR_LEVELS, Variant, cartKey, isDrink, lineName, parseKey, priceOptions, sortMenu, sugarLabel,
+} from "@/lib/types";
+import { askNotifications, notify } from "@/lib/notify";
+import { chime, unlockAudio } from "@/components/staff/alarm";
 import Thumb from "@/components/Thumb";
 import Cat from "@/components/Cat";
 
-type Cart = Record<string, number>; // "<menu_item_id>|<hot|iced|>" -> qty
-type Placed = { id: string; order_no: number; total: number; name: string };
+type Cart = Record<string, number>; // "<menu_item_id>|<hot|iced|>|<sugar|>" -> qty
+type Line = { key: string; item: MenuItem; variant: Variant; sugar: number | null; qty: number; price: number };
+type Picker = { item: MenuItem; variant: Variant; price: number };
 
-const CART_KEY = "mb_cart_v2";
-const NAME_KEY = "mb_name";
-const LAST_KEY = "mb_last_order";
+const CART_KEY = "mb_cart_v3";
+// The order this tab is waiting for (its id only: no name, no items), so it can tell the customer when it's ready.
+// Kept in this browser tab only, like the name.
+const WAIT_KEY = "mb_waiting_order";
+// The customer's name for this visit. Kept only in this browser tab (forgotten when it closes).
+const GUEST_KEY = "mb_guest_name";
+// Older versions saved the customer's name and last order on the phone; these are cleared on load.
+const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2", "mb_waiting_order"];
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -21,6 +31,20 @@ function load<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+function loadTab<T>(key: string, fallback: T): T {
+  try {
+    const v = sessionStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveTab(key: string, v: unknown) {
+  try {
+    if (v == null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, JSON.stringify(v));
+  } catch {}
 }
 function save(key: string, v: unknown) {
   try {
@@ -36,18 +60,34 @@ export default function CustomerMenu() {
   const [cat, setCat] = useState("All");
   const [cart, setCart] = useState<Cart>({});
   const [name, setName] = useState("");
+  const [entered, setEntered] = useState<boolean | null>(null); // null until we've checked this tab
   const [note, setNote] = useState("");
   const [showCart, setShowCart] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
-  const [placed, setPlaced] = useState<Placed | null>(null);
-  const [status, setStatus] = useState<string>("");
+  // Confirmation after ordering, then this phone watches its own order until it's ready.
+  const [sent, setSent] = useState<{ total: number } | null>(null);
+  const [waiting, setWaiting] = useState<{ id: string; status: string } | null>(null);
+  const [readyAlert, setReadyAlert] = useState(false);
+  const [picker, setPicker] = useState<Picker | null>(null);
+  const [pickSugar, setPickSugar] = useState<number>(DEFAULT_SUGAR);
+  const [pickQty, setPickQty] = useState(1);
 
   // Load menu + keep availability live
   useEffect(() => {
     setCart(load(CART_KEY, {}));
-    setName(load(NAME_KEY, ""));
-    setPlaced(load(LAST_KEY, null));
+    try {
+      const g = sessionStorage.getItem(GUEST_KEY);
+      if (g) setName(g);
+      setEntered(!!g);
+    } catch {
+      setEntered(false);
+    }
+    const w = loadTab<{ id: string } | null>(WAIT_KEY, null);
+    if (w?.id) setWaiting({ id: w.id, status: "new" });
+    try {
+      OLD_KEYS.forEach((k) => localStorage.removeItem(k));
+    } catch {}
     let db;
     try {
       db = supabase();
@@ -74,21 +114,38 @@ export default function CustomerMenu() {
 
   useEffect(() => save(CART_KEY, cart), [cart]);
 
-  // Poll status of the last placed order so the customer sees progress
+  // Watch this phone's own order. When staff press Ready: big message, chime, vibration and a notification.
+  const waitingId = waiting?.id;
   useEffect(() => {
-    if (!placed) return;
+    if (!waitingId) return;
     let stop = false;
+    let last = "";
     const tick = async () => {
-      const { data } = await supabase().rpc("order_status", { p_order_id: placed.id });
-      if (!stop && typeof data === "string") setStatus(data);
+      const { data } = await supabase().rpc("order_status", { p_order_id: waitingId });
+      if (stop || typeof data !== "string") return;
+      if (data === "ready" && last !== "ready") {
+        setReadyAlert(true);
+        chime();
+        try {
+          navigator.vibrate?.([300, 150, 300, 150, 300]);
+        } catch {}
+        notify(`${BRAND.name}: your order is ready`, "Our staff will call your name.", "order-ready");
+      }
+      last = data;
+      if (["paid", "cancelled", "unpaid"].includes(data)) {
+        saveTab(WAIT_KEY, null);
+        setWaiting(null);
+        return;
+      }
+      setWaiting({ id: waitingId, status: data });
     };
     tick();
-    const t = setInterval(tick, 10000);
+    const t = setInterval(tick, 5000);
     return () => {
       stop = true;
       clearInterval(t);
     };
-  }, [placed]);
+  }, [waitingId]);
 
   const byId = useMemo(() => Object.fromEntries(menu.map((m) => [m.id, m])), [menu]);
   const categories = useMemo(() => ["All", ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
@@ -114,15 +171,28 @@ export default function CustomerMenu() {
 
   const cartLines = Object.entries(cart)
     .map(([key, qty]) => {
-      const { id, variant } = parseKey(key);
+      const { id, variant, sugar } = parseKey(key);
       const item = byId[id];
       const opt = item && priceOptions(item).find((o) => o.variant === variant);
-      return item && opt && qty > 0 ? { key, item, variant, qty, price: opt.price } : null;
+      return item && opt && qty > 0 ? { key, item, variant, sugar, qty, price: opt.price } : null;
     })
-    .filter((l): l is { key: string; item: MenuItem; variant: Variant; qty: number; price: number } => !!l);
+    .filter((l): l is Line => !!l);
+  const inCart = (id: string, v: Variant) => cartLines.filter((l) => l.item.id === id && l.variant === v).reduce((s, l) => s + l.qty, 0);
   const cartCount = cartLines.reduce((s, l) => s + l.qty, 0);
   const cartTotal = cartLines.reduce((s, l) => s + l.qty * l.price, 0);
   const unavailableInCart = cartLines.filter((l) => !l.item.available);
+
+  const openPicker = (item: MenuItem, variant: Variant, price: number) => {
+    setPickSugar(DEFAULT_SUGAR);
+    setPickQty(1);
+    setPicker({ item, variant, price });
+  };
+  const addPicked = () => {
+    if (!picker) return;
+    const key = cartKey(picker.item.id, picker.variant, pickSugar);
+    setCart((c) => ({ ...c, [key]: Math.min((c[key] || 0) + pickQty, 50) }));
+    setPicker(null);
+  };
 
   const setQty = (key: string, q: number) =>
     setCart((c) => {
@@ -135,7 +205,7 @@ export default function CustomerMenu() {
   const placeOrder = async () => {
     setError("");
     if (!name.trim()) {
-      setError("Please enter your name so we can call you.");
+      setEntered(false);
       return;
     }
     if (unavailableInCart.length) {
@@ -143,10 +213,11 @@ export default function CustomerMenu() {
       return;
     }
     setPlacing(true);
-    save(NAME_KEY, name.trim());
+    unlockAudio(); // this tap lets the phone chime later, when the order is ready
+    askNotifications();
     const { data, error } = await supabase().rpc("place_order", {
       p_customer_name: name.trim(),
-      p_items: cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, qty: l.qty })),
+      p_items: cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, sugar: l.sugar, qty: l.qty })),
       p_note: note.trim() || null,
     });
     setPlacing(false);
@@ -155,22 +226,58 @@ export default function CustomerMenu() {
       return;
     }
     const row = Array.isArray(data) ? data[0] : data;
-    const p: Placed = { id: row.id, order_no: row.order_no, total: Number(row.total), name: name.trim() };
-    setPlaced(p);
-    setStatus("new");
-    save(LAST_KEY, p);
+    setSent({ total: Number(row?.total ?? cartTotal) });
+    if (row?.id) {
+      saveTab(WAIT_KEY, { id: row.id });
+      setReadyAlert(false);
+      setWaiting({ id: row.id, status: "new" });
+    }
     setCart({});
     setNote("");
     setShowCart(false);
   };
 
-  const statusText: Record<string, string> = {
-    new: "Sent! Our staff will be with you shortly.",
-    taken: "Your order has been taken and is being prepared.",
-    paid: "Paid — thank you! Enjoy.",
-    cancelled: "This order was cancelled. Please speak to our staff.",
-    unpaid: "Please see our staff to settle this order.",
+  const enter = (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = name.trim().slice(0, 60);
+    if (!n) return;
+    setName(n);
+    try {
+      sessionStorage.setItem(GUEST_KEY, n);
+    } catch {}
+    setEntered(true);
   };
+
+  if (entered === null) return null; // checking this tab for a name; avoids a flash of the wrong screen
+
+  if (!entered)
+    return (
+      <main className="welcome">
+        <form className="welcome-card" onSubmit={enter}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt={BRAND.name} className="welcome-logo" />
+          <h1>{BRAND.name}</h1>
+          <p className="tag">{BRAND.tagline}</p>
+          <label htmlFor="guest-name" className="welcome-label">
+            What&apos;s your name?
+          </label>
+          <input
+            id="guest-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+            placeholder="e.g. Aung"
+            autoComplete="given-name"
+            autoFocus
+          />
+          <button className="btn btn-primary btn-block" disabled={!name.trim()}>
+            See the menu
+          </button>
+          <p className="muted small">We&apos;ll call this name when your order is ready.</p>
+        </form>
+        <Cat className="brand-cat" />
+      </main>
+    );
 
   return (
     <>
@@ -184,7 +291,24 @@ export default function CustomerMenu() {
               <div className="tag">{BRAND.tagline}</div>
             </div>
             <span className="grow" />
-            <Cat className="brand-cat" />
+            <button
+              className="cart-btn"
+              onClick={() => setShowCart(true)}
+              aria-label={cartCount ? `Cart, ${cartCount} item${cartCount > 1 ? "s" : ""}` : "Cart, empty"}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M3 4h2.2l2.1 10.4a2 2 0 0 0 2 1.6h7.5a2 2 0 0 0 2-1.5L20.5 8H6.2" />
+                <circle cx="10" cy="20" r="1.4" />
+                <circle cx="17" cy="20" r="1.4" />
+              </svg>
+              {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
+            </button>
+          </div>
+          <div className="guest">
+            Ordering as <strong>{name}</strong> ·{" "}
+            <button type="button" className="link-btn" onClick={() => setEntered(false)}>
+              Change
+            </button>
           </div>
           <div className="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -210,32 +334,18 @@ export default function CustomerMenu() {
       </header>
 
       <main className="menu">
-        {placed && status && (
-          <div className="card" style={{ padding: 14, marginTop: 8, borderColor: "var(--accent)" }}>
-            <div className="row between">
-              <strong>
-                Order #{placed.order_no} · {placed.name}
-              </strong>
-              <span className={`pill ${status}`}>{status}</span>
-            </div>
-            <div className="muted small" style={{ marginTop: 4 }}>
-              {statusText[status] ?? ""} Total {money(placed.total)}
-            </div>
-            {(status === "paid" || status === "cancelled") && (
-              <button
-                className="btn btn-ghost small"
-                style={{ marginTop: 8, padding: "4px 0" }}
-                onClick={() => {
-                  setPlaced(null);
-                  save(LAST_KEY, null);
-                }}
-              >
-                Dismiss
-              </button>
-            )}
+        {waiting && (
+          <div className={`tracker ${waiting.status === "ready" ? "is-ready" : ""}`} role="status">
+            <span className="tracker-dot" aria-hidden />
+            <span className="grow">
+              {waiting.status === "ready"
+                ? "Your order is ready. Our staff will call your name."
+                : waiting.status === "taken"
+                ? "Your order is being prepared."
+                : "Your order has been sent to our staff."}
+            </span>
           </div>
         )}
-
         {loading && <div className="empty">Loading menu…</div>}
         {loadError && <div className="empty error">{loadError}</div>}
         {!loading && !loadError && grouped.length === 0 && (
@@ -260,6 +370,25 @@ export default function CustomerMenu() {
                           <span className="pill">Sold out</span>
                         ) : (
                           opts.map((o) => {
+                            if (isDrink(m)) {
+                              const n = inCart(m.id, o.variant);
+                              return (
+                                <div className="opt" key={o.variant || "one"}>
+                                  <span className="opt-label">
+                                    {o.label && <span className="muted">{o.label} </span>}
+                                    <span className="price">{money(o.price)}</span>
+                                    {n > 0 && <span className="in-cart">{n} in cart</span>}
+                                  </span>
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => openPicker(m, o.variant, o.price)}
+                                    aria-label={`Add ${lineName(m, o.variant)}`}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                              );
+                            }
                             const key = cartKey(m.id, o.variant);
                             const q = cart[key] || 0;
                             return (
@@ -302,6 +431,7 @@ export default function CustomerMenu() {
 
         {!loading && !loadError && (
           <footer className="cust-footer">
+            <Cat className="brand-cat" />
             <div className="small">Thank you for supporting local &amp; happy people.</div>
             <div className="script">See you at Midnight.</div>
             <a href={BRAND.instagramUrl} target="_blank" rel="noreferrer">
@@ -321,6 +451,84 @@ export default function CustomerMenu() {
         </div>
       )}
 
+      {picker && (
+        <div className="overlay" onClick={() => setPicker(null)}>
+          <div className="sheet" role="dialog" aria-labelledby="pick-title" onClick={(e) => e.stopPropagation()}>
+            <div className="row between">
+              <h2 id="pick-title" style={{ marginBottom: 0 }}>{lineName(picker.item, picker.variant)}</h2>
+              <button className="icon-btn" onClick={() => setPicker(null)} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <div className="muted small" style={{ margin: "4px 0 14px" }}>{money(picker.price)} each</div>
+            <div className="small" style={{ fontWeight: 600, marginBottom: 8 }}>Sweetness</div>
+            <div className="sugar-grid" role="radiogroup" aria-label="Sweetness">
+              {SUGAR_LEVELS.map((lv) => (
+                <button
+                  key={lv}
+                  type="button"
+                  role="radio"
+                  aria-checked={pickSugar === lv}
+                  className={`sugar-opt ${pickSugar === lv ? "on" : ""}`}
+                  onClick={() => setPickSugar(lv)}
+                >
+                  <strong>{lv}%</strong>
+                  <span>{lv === 0 ? "No sugar" : lv === 100 ? "Normal" : lv === 25 ? "Very light" : lv === 50 ? "Half" : "Less"}</span>
+                </button>
+              ))}
+            </div>
+            <div className="row between" style={{ margin: "16px 0" }}>
+              <span style={{ fontWeight: 600 }}>Quantity</span>
+              <span className="qty">
+                <button className="icon-btn" onClick={() => setPickQty((q) => Math.max(1, q - 1))} aria-label="One less">
+                  −
+                </button>
+                {pickQty}
+                <button className="icon-btn" onClick={() => setPickQty((q) => Math.min(50, q + 1))} aria-label="One more">
+                  +
+                </button>
+              </span>
+            </div>
+            <button className="btn btn-primary btn-block" onClick={addPicked}>
+              Add to cart · {money(picker.price * pickQty)}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {readyAlert && (
+        <div className="overlay" onClick={() => setReadyAlert(false)}>
+          <div className="sheet sent ready" role="alertdialog" aria-labelledby="ready-title" onClick={(e) => e.stopPropagation()}>
+            <div className="sent-mark" aria-hidden>
+              ☕
+            </div>
+            <h2 id="ready-title">Your order is ready</h2>
+            <p className="muted">Our staff will call your name.</p>
+            <button className="btn btn-primary btn-block" onClick={() => setReadyAlert(false)} autoFocus>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {sent && (
+        <div className="overlay" onClick={() => setSent(null)}>
+          <div className="sheet sent" role="alertdialog" aria-labelledby="sent-title" onClick={(e) => e.stopPropagation()}>
+            <div className="sent-mark" aria-hidden>
+              ✓
+            </div>
+            <h2 id="sent-title">Order sent</h2>
+            <p className="muted">
+              Our staff have your order. Keep this page open and we&apos;ll let you know when it&apos;s ready. Please pay{" "}
+              <strong className="price">{money(sent.total)}</strong> to our staff.
+            </p>
+            <button className="btn btn-primary btn-block" onClick={() => setSent(null)} autoFocus>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
       {showCart && (
         <div className="overlay" onClick={() => setShowCart(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -331,12 +539,13 @@ export default function CustomerMenu() {
               </button>
             </div>
             {cartLines.length === 0 && <div className="empty">Your cart is empty.</div>}
-            {cartLines.map(({ key, item, variant, qty, price }) => (
+            {cartLines.map(({ key, item, variant, sugar, qty, price }) => (
               <div className="line" key={key}>
                 <Thumb item={item} size={48} />
                 <div className="grow">
                   <div style={{ fontWeight: 600 }}>{lineName(item, variant)}</div>
                   <div className="muted small">
+                    {sugar != null && <>{sugarLabel(sugar)} · </>}
                     {money(price)} each{!item.available && <span className="error"> · sold out</span>}
                   </div>
                 </div>
@@ -357,10 +566,9 @@ export default function CustomerMenu() {
               <span className="price">{money(cartTotal)}</span>
             </div>
             <div className="stack">
-              <label className="stack" style={{ gap: 4 }}>
-                <span className="small muted">Your name (we&apos;ll call this out)</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="e.g. Aung" />
-              </label>
+              <div className="small muted">
+                Ordering as <strong style={{ color: "var(--text)" }}>{name}</strong>
+              </div>
               <label className="stack" style={{ gap: 4 }}>
                 <span className="small muted">Note (optional)</span>
                 <textarea
@@ -368,7 +576,7 @@ export default function CustomerMenu() {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   maxLength={300}
-                  placeholder="Less sugar, no ice, table by the window…"
+                  placeholder="No ice, extra hot, table by the window…"
                 />
               </label>
               {error && <div className="error">{error}</div>}

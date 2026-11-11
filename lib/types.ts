@@ -12,7 +12,7 @@ export type MenuItem = {
   sort_order: number;
 };
 
-export type OrderStatus = "new" | "taken" | "paid" | "cancelled" | "unpaid";
+export type OrderStatus = "new" | "taken" | "ready" | "paid" | "cancelled" | "unpaid";
 export type PaymentMethod = "qr" | "cash" | "card" | "grabfood";
 
 export type OrderItem = {
@@ -21,6 +21,7 @@ export type OrderItem = {
   menu_item_id: string | null;
   name: string;
   variant: string | null;
+  sugar: number | null;
   unit_price: number;
   qty: number;
   line_total: number;
@@ -40,6 +41,7 @@ export type Order = {
   seen: boolean;
   created_at: string;
   taken_at: string | null;
+  ready_at: string | null;
   paid_at: string | null;
   closed_at: string | null;
   order_items?: OrderItem[];
@@ -76,8 +78,21 @@ export function lineName(m: MenuItem, v: Variant) {
   return m.name + (v === "hot" ? " (Hot)" : v === "iced" ? " (Iced)" : "");
 }
 
-export const cartKey = (id: string, v: Variant) => `${id}|${v}`;
+// Sugar level (%) for drinks. Snacks and extras have none.
+export const SUGAR_LEVELS = [0, 25, 50, 75, 100] as const;
+export const DEFAULT_SUGAR = 100;
+const NOT_DRINKS = ["Snacks", "Extra"];
+export const isDrink = (m: Pick<MenuItem, "category">) => !NOT_DRINKS.includes(m.category);
+export function sugarLabel(level: number | null | undefined) {
+  if (level == null) return "";
+  if (level === 0) return "No sugar";
+  if (level === 100) return "Normal sugar";
+  return `Sugar ${level}%`;
+}
+
+/** Cart line key: item, Hot/Iced and sugar level ("" when not a drink). */
+export const cartKey = (id: string, v: Variant, sugar: number | null = null) => `${id}|${v}|${sugar ?? ""}`;
 export const parseKey = (k: string) => {
-  const [id, v = ""] = k.split("|");
-  return { id, variant: v as Variant };
+  const [id, v = "", s = ""] = k.split("|");
+  return { id, variant: v as Variant, sugar: s === "" ? null : Number(s) };
 };
