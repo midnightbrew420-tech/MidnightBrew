@@ -15,23 +15,17 @@ type Cart = Record<string, number>; // "<menu_item_id>|<hot|iced|>|<sugar|>" -> 
 type Line = { key: string; item: MenuItem; variant: Variant; sugar: number | null; qty: number; price: number };
 type Picker = { item: MenuItem; variant: Variant; price: number };
 
-const CART_KEY = "mb_cart_v3";
+// Each name has its own cart: { "<name>": cart }. Kept in this browser tab only, like the name,
+// so a cart never shows up under someone else's name.
+const CARTS_KEY = "mb_carts_by_name";
 // The order this tab is waiting for (its id only: no name, no items), so it can tell the customer when it's ready.
 // Kept in this browser tab only, like the name.
 const WAIT_KEY = "mb_waiting_order";
 // The customer's name for this visit. Kept only in this browser tab (forgotten when it closes).
 const GUEST_KEY = "mb_guest_name";
 // Older versions saved the customer's name and last order on the phone; these are cleared on load.
-const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2", "mb_waiting_order"];
+const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2", "mb_cart_v3", "mb_waiting_order"];
 
-function load<T>(key: string, fallback: T): T {
-  try {
-    const v = localStorage.getItem(key);
-    return v ? (JSON.parse(v) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
 function loadTab<T>(key: string, fallback: T): T {
   try {
     const v = sessionStorage.getItem(key);
@@ -46,10 +40,15 @@ function saveTab(key: string, v: unknown) {
     else sessionStorage.setItem(key, JSON.stringify(v));
   } catch {}
 }
-function save(key: string, v: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(v));
-  } catch {}
+const cartOwner = (n: string) => n.trim().toLowerCase();
+function loadCart(n: string): Cart {
+  return loadTab<Record<string, Cart>>(CARTS_KEY, {})[cartOwner(n)] ?? {};
+}
+function saveCart(n: string, cart: Cart) {
+  const all = loadTab<Record<string, Cart>>(CARTS_KEY, {});
+  if (Object.keys(cart).length) all[cartOwner(n)] = cart;
+  else delete all[cartOwner(n)];
+  saveTab(CARTS_KEY, all);
 }
 
 export default function CustomerMenu() {
@@ -59,7 +58,8 @@ export default function CustomerMenu() {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("All");
   const [cart, setCart] = useState<Cart>({});
-  const [name, setName] = useState("");
+  const [name, setName] = useState(""); // what's typed on the name screen
+  const [guest, setGuest] = useState(""); // the name this cart belongs to
   const [entered, setEntered] = useState<boolean | null>(null); // null until we've checked this tab
   const [note, setNote] = useState("");
   const [showCart, setShowCart] = useState(false);
@@ -75,10 +75,13 @@ export default function CustomerMenu() {
 
   // Load menu + keep availability live
   useEffect(() => {
-    setCart(load(CART_KEY, {}));
     try {
       const g = sessionStorage.getItem(GUEST_KEY);
-      if (g) setName(g);
+      if (g) {
+        setName(g);
+        setGuest(g);
+        setCart(loadCart(g));
+      }
       setEntered(!!g);
     } catch {
       setEntered(false);
@@ -112,7 +115,9 @@ export default function CustomerMenu() {
     };
   }, []);
 
-  useEffect(() => save(CART_KEY, cart), [cart]);
+  useEffect(() => {
+    if (guest) saveCart(guest, cart);
+  }, [guest, cart]);
 
   // Watch this phone's own order. When staff press Ready: big message, chime, vibration and a notification.
   const waitingId = waiting?.id;
@@ -204,7 +209,7 @@ export default function CustomerMenu() {
 
   const placeOrder = async () => {
     setError("");
-    if (!name.trim()) {
+    if (!guest) {
       setEntered(false);
       return;
     }
@@ -216,7 +221,7 @@ export default function CustomerMenu() {
     unlockAudio(); // this tap lets the phone chime later, when the order is ready
     askNotifications();
     const { data, error } = await supabase().rpc("place_order", {
-      p_customer_name: name.trim(),
+      p_customer_name: guest,
       p_items: cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, sugar: l.sugar, qty: l.qty })),
       p_note: note.trim() || null,
     });
@@ -245,6 +250,12 @@ export default function CustomerMenu() {
     try {
       sessionStorage.setItem(GUEST_KEY, n);
     } catch {}
+    // Switch to this name's own cart (empty for a new name).
+    if (cartOwner(n) !== cartOwner(guest)) {
+      setCart(loadCart(n));
+      setNote("");
+    }
+    setGuest(n);
     setEntered(true);
   };
 
@@ -305,7 +316,7 @@ export default function CustomerMenu() {
             </button>
           </div>
           <div className="guest">
-            Ordering as <strong>{name}</strong> ·{" "}
+            Ordering as <strong>{guest}</strong> ·{" "}
             <button type="button" className="link-btn" onClick={() => setEntered(false)}>
               Change
             </button>
