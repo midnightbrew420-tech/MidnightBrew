@@ -528,11 +528,13 @@ export default function CustomerMenu() {
             <div className="sent-mark" aria-hidden>
               ✓
             </div>
-            <h2 id="sent-title">Order sent</h2>
+            <h2 id="sent-title">Thank you{guest ? `, ${guest}` : ""}!</h2>
+            <p className="thanks-line">Your order has been sent. Enjoy your treat!</p>
             <p className="muted">
-              Our staff have your order. Keep this page open and we&apos;ll let you know when it&apos;s ready. Please pay{" "}
+              Keep this page open and we&apos;ll let you know when it&apos;s ready. Please pay{" "}
               <strong className="price">{money(sent.total)}</strong> to our staff.
             </p>
+            <p className="thanks-tag">{BRAND.tagline}</p>
             <button className="btn btn-primary btn-block" onClick={() => setSent(null)} autoFocus>
               Done
             </button>
