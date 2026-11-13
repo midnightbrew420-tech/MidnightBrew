@@ -70,6 +70,7 @@ export default function CustomerMenu() {
   const [waiting, setWaiting] = useState<{ id: string; status: string } | null>(null);
   const [readyAlert, setReadyAlert] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
+  const [shopOpen, setShopOpen] = useState(true); // staff can close the shop; then ordering pauses
   const [pickSugar, setPickSugar] = useState<number>(DEFAULT_SUGAR);
   const [pickQty, setPickQty] = useState(1);
 
@@ -105,10 +106,16 @@ export default function CustomerMenu() {
       else setMenu(sortMenu(data as MenuItem[]));
       setLoading(false);
     };
+    const fetchShop = async () => {
+      const { data } = await db.from("shop_status").select("is_open").eq("id", 1).maybeSingle();
+      if (data) setShopOpen(data.is_open !== false); // no row or no table yet: treat as open
+    };
     fetchMenu();
+    fetchShop();
     const ch = db
       .channel("menu-public")
       .on("postgres_changes", { event: "*", schema: "public", table: "menu_items" }, fetchMenu)
+      .on("postgres_changes", { event: "*", schema: "public", table: "shop_status" }, fetchShop)
       .subscribe();
     return () => {
       db.removeChannel(ch);
@@ -209,6 +216,10 @@ export default function CustomerMenu() {
 
   const placeOrder = async () => {
     setError("");
+    if (!shopOpen) {
+      setError("Sorry, we're closed right now. Please order again when we open.");
+      return;
+    }
     if (!guest) {
       setEntered(false);
       return;
@@ -345,6 +356,12 @@ export default function CustomerMenu() {
       </header>
 
       <main className="menu">
+        {!shopOpen && (
+          <div className="closed-banner" role="status">
+            <strong>We&apos;re closed right now.</strong>
+            <span>You can look at the menu. Ordering opens again when we do.</span>
+          </div>
+        )}
         {waiting && (
           <div className={`tracker ${waiting.status === "ready" ? "is-ready" : ""}`} role="status">
             <span className="tracker-dot" aria-hidden />
@@ -392,6 +409,7 @@ export default function CustomerMenu() {
                                   </span>
                                   <button
                                     className="btn btn-primary btn-sm"
+                                    disabled={!shopOpen}
                                     onClick={() => openPicker(m, o.variant, o.price)}
                                     aria-label={`Add ${lineName(m, o.variant)}`}
                                   >
@@ -411,6 +429,7 @@ export default function CustomerMenu() {
                                 {q === 0 ? (
                                   <button
                                     className="btn btn-primary btn-sm"
+                                    disabled={!shopOpen}
                                     onClick={() => setQty(key, 1)}
                                     aria-label={`Add ${lineName(m, o.variant)}`}
                                   >
@@ -595,10 +614,10 @@ export default function CustomerMenu() {
               {error && <div className="error">{error}</div>}
               <button
                 className="btn btn-primary btn-block"
-                disabled={placing || cartLines.length === 0}
+                disabled={placing || cartLines.length === 0 || !shopOpen}
                 onClick={placeOrder}
               >
-                {placing ? "Sending…" : `Place order · ${money(cartTotal)}`}
+                {!shopOpen ? "Closed: ordering paused" : placing ? "Sending…" : `Place order · ${money(cartTotal)}`}
               </button>
               <div className="muted small" style={{ textAlign: "center" }}>
                 No payment here — pay our staff when they come to you.

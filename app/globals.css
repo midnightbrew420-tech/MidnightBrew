@@ -305,3 +305,15 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .guest { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .guest strong { color: var(--text); }
 .link-btn { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; font-size: inherit; }
+
+/* Shop open / closed */
+.closed-banner {
+  display: flex; flex-direction: column; gap: 2px; margin: 0 0 16px; padding: 12px 14px;
+  border-radius: var(--radius); background: var(--danger); color: #fff; font-size: 14px;
+}
+.closed-banner strong { font-size: 16px; }
+.shop-toggle { gap: 8px; font-weight: 700; }
+.shop-toggle.is-open { background: var(--ok); border-color: var(--ok); color: #fff; }
+.shop-toggle.is-closed { background: var(--danger); border-color: var(--danger); color: #fff; }
+.shop-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; display: inline-block; }
+.shop-toggle.is-closed .shop-dot { opacity: .55; }
