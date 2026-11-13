@@ -71,6 +71,7 @@ export default function CustomerMenu() {
   const [readyAlert, setReadyAlert] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
   const [shopOpen, setShopOpen] = useState(true); // staff can close the shop; then ordering pauses
+  const [hours, setHours] = useState(""); // opening hours text set by staff
   const [pickSugar, setPickSugar] = useState<number>(DEFAULT_SUGAR);
   const [pickQty, setPickQty] = useState(1);
 
@@ -107,8 +108,11 @@ export default function CustomerMenu() {
       setLoading(false);
     };
     const fetchShop = async () => {
-      const { data } = await db.from("shop_status").select("is_open").eq("id", 1).maybeSingle();
-      if (data) setShopOpen(data.is_open !== false); // no row or no table yet: treat as open
+      const { data } = await db.from("shop_status").select("*").eq("id", 1).maybeSingle();
+      if (data) {
+        setShopOpen(data.is_open !== false); // no row or no table yet: treat as open
+        setHours(typeof data.hours === "string" ? data.hours.trim() : "");
+      }
     };
     fetchMenu();
     fetchShop();
@@ -326,6 +330,17 @@ export default function CustomerMenu() {
               {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
           </div>
+          {hours && (
+            <div className="hours-line">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              <span>
+                Opening hours: <strong>{hours}</strong>
+              </span>
+            </div>
+          )}
           <div className="guest">
             Ordering as <strong>{guest}</strong> ·{" "}
             <button type="button" className="link-btn" onClick={() => setEntered(false)}>
@@ -360,6 +375,7 @@ export default function CustomerMenu() {
           <div className="closed-banner" role="status">
             <strong>We&apos;re closed right now.</strong>
             <span>You can look at the menu. Ordering opens again when we do.</span>
+            {hours && <span className="closed-hours">Opening hours: {hours}</span>}
           </div>
         )}
         {waiting && (

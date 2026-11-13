@@ -94,6 +94,9 @@ function Dashboard({ email }: { email: string }) {
   const [notifPerm, setNotifPerm] = useState<string>("default");
   const [shopOpen, setShopOpen] = useState<boolean | null>(null); // null until loaded
   const [shopBusy, setShopBusy] = useState(false);
+  const [hours, setHours] = useState("");
+  const [editHours, setEditHours] = useState<string | null>(null); // text being edited, or null when closed
+  const [hoursError, setHoursError] = useState("");
   const knownIds = useRef<Set<string> | null>(null);
 
   const loadMenu = useCallback(async () => {
@@ -120,9 +123,30 @@ function Dashboard({ email }: { email: string }) {
   }, []);
 
   const loadShop = useCallback(async () => {
-    const { data } = await supabase().from("shop_status").select("is_open").eq("id", 1).maybeSingle();
-    if (data) setShopOpen(data.is_open !== false);
+    const { data } = await supabase().from("shop_status").select("*").eq("id", 1).maybeSingle();
+    if (data) {
+      setShopOpen(data.is_open !== false);
+      setHours(typeof data.hours === "string" ? data.hours : "");
+    }
   }, []);
+
+  const saveHours = async () => {
+    if (editHours === null) return;
+    setHoursError("");
+    setShopBusy(true);
+    const text = editHours.trim().slice(0, 120);
+    const { error } = await supabase()
+      .from("shop_status")
+      .update({ hours: text, updated_at: new Date().toISOString() })
+      .eq("id", 1);
+    setShopBusy(false);
+    if (error) {
+      setHoursError(error.message);
+      return;
+    }
+    setHours(text);
+    setEditHours(null);
+  };
 
   const toggleShop = async () => {
     if (shopOpen === null || shopBusy) return;
@@ -226,6 +250,11 @@ function Dashboard({ email }: { email: string }) {
             {shopOpen ? "Open" : "Closed"}
           </button>
         )}
+        {shopOpen !== null && (
+          <button className="btn" onClick={() => { setHoursError(""); setEditHours(hours); }} title={hours || "Set opening hours"}>
+            Hours
+          </button>
+        )}
         <button className="btn" onClick={() => setShowQr(true)}>QR code</button>
         <button className="btn btn-ghost small" onClick={() => supabase().auth.signOut()} title={email}>
           Sign out
@@ -287,6 +316,30 @@ function Dashboard({ email }: { email: string }) {
       )}
 
       {showQr && <QrModal onClose={() => setShowQr(false)} />}
+      {editHours !== null && (
+        <div className="overlay" onClick={() => setEditHours(null)}>
+          <div className="sheet stack" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ margin: 0 }}>Opening hours</h2>
+            <p className="muted small" style={{ margin: 0 }}>
+              Shown at the top of the customer menu at all times. Leave empty to hide it.
+            </p>
+            <input
+              value={editHours}
+              onChange={(e) => setEditHours(e.target.value)}
+              maxLength={120}
+              placeholder="e.g. Every day 6 PM – 2 AM"
+              autoFocus
+            />
+            {hoursError && <div className="error">{hoursError}</div>}
+            <div className="row">
+              <button className="btn grow" onClick={() => setEditHours(null)}>Cancel</button>
+              <button className="btn btn-primary grow" onClick={saveHours} disabled={shopBusy}>
+                {shopBusy ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

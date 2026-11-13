@@ -12,6 +12,11 @@ create table if not exists public.shop_status (
 );
 insert into public.shop_status (id, is_open) values (1, true) on conflict (id) do nothing;
 
+-- Opening hours text that staff write (e.g. "Every day 6 PM - 2 AM"); shown on the customer menu.
+alter table public.shop_status add column if not exists hours text not null default '';
+alter table public.shop_status drop constraint if exists shop_status_hours_length;
+alter table public.shop_status add constraint shop_status_hours_length check (char_length(hours) <= 120);
+
 alter table public.shop_status enable row level security;
 
 drop policy if exists "shop status readable by all" on public.shop_status;
