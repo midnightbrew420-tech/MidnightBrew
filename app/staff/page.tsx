@@ -82,6 +82,15 @@ function Login() {
   );
 }
 
+// The Supabase project this app talks to, so staff can check they ran the SQL in the right one.
+const SUPABASE_HOST = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || "").host;
+  } catch {
+    return "";
+  }
+})();
+
 function Dashboard({ email }: { email: string }) {
   const [tab, setTab] = useState<Tab>("active");
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -97,6 +106,7 @@ function Dashboard({ email }: { email: string }) {
   const [hours, setHours] = useState("");
   const [editHours, setEditHours] = useState<string | null>(null); // text being edited, or null when closed
   const [hoursError, setHoursError] = useState("");
+  const [shopError, setShopError] = useState(""); // why Open/Closed and Hours can't load, if they can't
   const knownIds = useRef<Set<string> | null>(null);
 
   const loadMenu = useCallback(async () => {
@@ -123,11 +133,18 @@ function Dashboard({ email }: { email: string }) {
   }, []);
 
   const loadShop = useCallback(async () => {
-    const { data } = await supabase().from("shop_status").select("*").eq("id", 1).maybeSingle();
-    if (data) {
-      setShopOpen(data.is_open !== false);
-      setHours(typeof data.hours === "string" ? data.hours : "");
+    const { data, error } = await supabase().from("shop_status").select("*").eq("id", 1).maybeSingle();
+    if (error) {
+      setShopError(error.message);
+      return;
     }
+    if (!data) {
+      setShopError("The shop settings row is missing from the shop_status table.");
+      return;
+    }
+    setShopError("");
+    setShopOpen(data.is_open !== false);
+    setHours(typeof data.hours === "string" ? data.hours : "");
   }, []);
 
   const saveHours = async () => {
@@ -238,28 +255,54 @@ function Dashboard({ email }: { email: string }) {
         <img src="/logo.png" alt="" />
         <strong className="display" style={{ fontSize: 18 }}>{BRAND.name}</strong>
         <span className="grow" />
-        {shopOpen !== null && (
-          <button
-            className={`btn shop-toggle ${shopOpen ? "is-open" : "is-closed"}`}
-            onClick={toggleShop}
-            disabled={shopBusy}
-            aria-pressed={shopOpen}
-            title={shopOpen ? "Customers can order. Tap to close the shop." : "Ordering is paused. Tap to open the shop."}
-          >
-            <span className="shop-dot" aria-hidden />
-            {shopOpen ? "Open" : "Closed"}
-          </button>
-        )}
-        {shopOpen !== null && (
-          <button className="btn" onClick={() => { setHoursError(""); setEditHours(hours); }} title={hours || "Set opening hours"}>
-            Hours
-          </button>
-        )}
+        <button
+          className={`btn shop-toggle ${shopOpen === null ? "" : shopOpen ? "is-open" : "is-closed"}`}
+          onClick={toggleShop}
+          disabled={shopBusy || shopOpen === null}
+          aria-pressed={shopOpen === null ? undefined : shopOpen}
+          title={
+            shopOpen === null
+              ? shopError || "Loading shop status…"
+              : shopOpen
+              ? "Customers can order. Tap to close the shop."
+              : "Ordering is paused. Tap to open the shop."
+          }
+        >
+          <span className="shop-dot" aria-hidden />
+          {shopOpen === null ? (shopError ? "Open/Closed ?" : "…") : shopOpen ? "Open" : "Closed"}
+        </button>
+        <button
+          className="btn"
+          onClick={() => { setHoursError(""); setEditHours(hours); }}
+          disabled={shopOpen === null}
+          title={shopOpen === null ? shopError || "Loading…" : hours || "Set opening hours"}
+        >
+          Hours
+        </button>
         <button className="btn" onClick={() => setShowQr(true)}>QR code</button>
         <button className="btn btn-ghost small" onClick={() => supabase().auth.signOut()} title={email}>
           Sign out
         </button>
       </div>
+
+      {shopError && (
+        <div className="shop-error" role="alert">
+          <div>
+            <strong>Open/Closed and Hours aren&apos;t working yet.</strong>
+            <div className="small">
+              Run the shop SQL (<code>20261113000000_shop_open_closed.sql</code>) in the Supabase project this app uses
+              {SUPABASE_HOST && (
+                <>
+                  : <code>{SUPABASE_HOST}</code>
+                </>
+              )}
+              , then tap Retry.
+            </div>
+            <div className="small muted-light">Details: {shopError}</div>
+          </div>
+          <button className="btn" onClick={() => loadShop()}>Retry</button>
+        </div>
+      )}
 
       {(!soundOn || notifPerm === "default") && (
         <div className="row between wrap" style={{ padding: "10px 16px", background: "var(--surface-2)" }}>
