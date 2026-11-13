@@ -172,6 +172,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
   position: sticky; top: 0; z-index: 20;
 }
 .staff-top img { width: 38px; height: 38px; }
+@media (max-width: 560px) {
+  .staff-top { flex-wrap: wrap; gap: 8px; }
+  .staff-top .btn { padding: 8px 10px; }
+}
 .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 8px 12px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
@@ -305,3 +309,29 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .guest { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .guest strong { color: var(--text); }
 .link-btn { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; text-underline-offset: 3px; font-weight: 600; font-size: inherit; }
+
+/* Shop open / closed */
+.closed-banner {
+  display: flex; flex-direction: column; gap: 2px; margin: 0 0 16px; padding: 12px 14px;
+  border-radius: var(--radius); background: var(--danger); color: #fff; font-size: 14px;
+}
+.closed-banner strong { font-size: 16px; }
+.shop-toggle { gap: 8px; font-weight: 700; }
+.shop-toggle.is-open { background: var(--ok); border-color: var(--ok); color: #fff; }
+.shop-toggle.is-closed { background: var(--danger); border-color: var(--danger); color: #fff; }
+.shop-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; display: inline-block; }
+.shop-toggle.is-closed .shop-dot { opacity: .55; }
+.hours-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 6px 0 2px; font-size: 13px; color: var(--muted); }
+.hours-text { display: inline-flex; align-items: center; gap: 6px; }
+.open-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; color: #fff; letter-spacing: .02em;
+}
+.open-badge.is-open { background: var(--ok); }
+.open-badge.is-closed { background: var(--danger); }
+.open-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; }
+.open-badge.is-open .open-dot { animation: open-pulse 1.6s ease-in-out infinite; }
+@keyframes open-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .open-badge.is-open .open-dot { animation: none; } }
+.hours-line strong { color: var(--text); font-weight: 600; }
+.closed-hours { margin-top: 4px; font-weight: 600; }
