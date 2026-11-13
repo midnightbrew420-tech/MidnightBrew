@@ -321,6 +321,17 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .shop-toggle.is-closed { background: var(--danger); border-color: var(--danger); color: #fff; }
 .shop-dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; display: inline-block; }
 .shop-toggle.is-closed .shop-dot { opacity: .55; }
-.hours-line { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 13px; color: var(--muted); }
+.hours-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 6px 0 2px; font-size: 13px; color: var(--muted); }
+.hours-text { display: inline-flex; align-items: center; gap: 6px; }
+.open-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; color: #fff; letter-spacing: .02em;
+}
+.open-badge.is-open { background: var(--ok); }
+.open-badge.is-closed { background: var(--danger); }
+.open-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; }
+.open-badge.is-open .open-dot { animation: open-pulse 1.6s ease-in-out infinite; }
+@keyframes open-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .open-badge.is-open .open-dot { animation: none; } }
 .hours-line strong { color: var(--text); font-weight: 600; }
 .closed-hours { margin-top: 4px; font-weight: 600; }

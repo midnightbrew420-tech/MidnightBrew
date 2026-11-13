@@ -330,17 +330,23 @@ export default function CustomerMenu() {
               {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
           </div>
-          {hours && (
-            <div className="hours-line">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-              <span>
-                Opening hours: <strong>{hours}</strong>
+          <div className="hours-line" role="status">
+            <span className={`open-badge ${shopOpen ? "is-open" : "is-closed"}`}>
+              <span className="open-dot" aria-hidden />
+              {shopOpen ? "Open now" : "Closed now"}
+            </span>
+            {hours && (
+              <span className="hours-text">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+                <span>
+                  Opening hours: <strong>{hours}</strong>
+                </span>
               </span>
-            </div>
-          )}
+            )}
+          </div>
           <div className="guest">
             Ordering as <strong>{guest}</strong> ·{" "}
             <button type="button" className="link-btn" onClick={() => setEntered(false)}>
