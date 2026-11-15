@@ -262,6 +262,7 @@ function Dashboard({ email }: { email: string }) {
         <img src="/logo.png" alt="" />
         <strong className="display" style={{ fontSize: 18 }}>{BRAND.name}</strong>
         <span className="grow" />
+        <LangToggle />
         <button
           className={`btn shop-toggle ${shopOpen === null ? "" : shopOpen ? "is-open" : "is-closed"}`}
           onClick={toggleShop}
@@ -287,7 +288,6 @@ function Dashboard({ email }: { email: string }) {
           {t("hours")}
         </button>
         <button className="btn" onClick={() => setShowQr(true)}>{t("qrCode")}</button>
-        <LangToggle />
         <button className="btn btn-ghost small" onClick={() => supabase().auth.signOut()} title={email}>
           {t("signOut")}
         </button>
