@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { PAYMENT_LABELS, money } from "@/lib/brand";
+import { money } from "@/lib/brand";
+import { Key, payLabel, statusLabel, sugarText, useLang } from "@/lib/i18n";
 import { dayRange, fromDateInput, timeShort, toDateInput } from "@/lib/dates";
 import { Order, sugarLabel, orderPlace } from "@/lib/types";
 import LocationTag from "@/components/LocationTag";
@@ -9,6 +10,7 @@ import LocationTag from "@/components/LocationTag";
 type Filter = "all" | "paid" | "cancelled" | "unpaid";
 
 export default function History({ onOpen, refreshKey }: { onOpen: (o: Order) => void; refreshKey: number }) {
+  const { lang, t } = useLang();
   const [date, setDate] = useState(toDateInput(new Date()));
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
@@ -57,21 +59,21 @@ export default function History({ onOpen, refreshKey }: { onOpen: (o: Order) => 
         <div className="seg">
           {(["all", "paid", "cancelled", "unpaid"] as Filter[]).map((f) => (
             <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>
-              {f[0].toUpperCase() + f.slice(1)}
+              {t(`f_${f}` as Key)}
             </button>
           ))}
         </div>
-        <input placeholder="Search name or #" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 220 }} />
+        <input placeholder={t("searchNameNo")} value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 220 }} />
       </div>
       {err && <div className="error">{err}</div>}
-      {loading && <div className="muted">Loading…</div>}
-      {!loading && shown.length === 0 && <div className="empty">No orders for this day.</div>}
+      {loading && <div className="muted">{t("loading")}</div>}
+      {!loading && shown.length === 0 && <div className="empty">{t("noOrdersDay")}</div>}
       {shown.length > 0 && (
         <div className="card" style={{ overflowX: "auto" }}>
           <table className="table">
             <thead>
               <tr>
-                <th>Time</th><th>#</th><th>Name</th><th>Items</th><th>Source</th><th>Status</th><th>Payment</th><th className="num">Total</th>
+                <th>{t("th_time")}</th><th>#</th><th>{t("th_name")}</th><th>{t("th_items")}</th><th>{t("th_source")}</th><th>{t("th_status")}</th><th>{t("th_payment")}</th><th className="num">{t("total")}</th>
               </tr>
             </thead>
             <tbody>
@@ -82,10 +84,10 @@ export default function History({ onOpen, refreshKey }: { onOpen: (o: Order) => 
                   <td>
                     <LocationTag code={orderPlace(o).location} room={orderPlace(o).room} /> {o.customer_name}
                   </td>
-                  <td className="small">{(o.order_items ?? []).map((i) => `${i.qty}× ${i.name}${i.sugar != null ? ` (${sugarLabel(i.sugar)})` : ""}`).join(", ")}</td>
-                  <td className="small muted">{o.source === "staff" ? "Staff" : "QR"}</td>
-                  <td><span className={`pill ${o.status}`}>{o.status}</span></td>
-                  <td>{o.payment_method ? PAYMENT_LABELS[o.payment_method] : "—"}</td>
+                  <td className="small">{(o.order_items ?? []).map((i) => `${i.qty}× ${i.name}${i.sugar != null ? ` (${sugarText(lang, i.sugar)})` : ""}`).join(", ")}</td>
+                  <td className="small muted">{o.source === "staff" ? t("srcStaff") : t("srcQr")}</td>
+                  <td><span className={`pill ${o.status}`}>{statusLabel(lang, o.status)}</span></td>
+                  <td>{o.payment_method ? payLabel(lang, o.payment_method) : "—"}</td>
                   <td className="num">{money(o.total)}</td>
                 </tr>
               ))}

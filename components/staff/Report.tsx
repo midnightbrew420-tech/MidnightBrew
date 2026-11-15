@@ -2,13 +2,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toJpeg } from "html-to-image";
 import { supabase } from "@/lib/supabase";
-import { BRAND, PAYMENT_LABELS, STAFF_ORDER_PAYMENTS, money } from "@/lib/brand";
+import { BRAND, STAFF_ORDER_PAYMENTS, money } from "@/lib/brand";
+import { payLabel, useLang } from "@/lib/i18n";
 import { dayRange, fromDateInput, monthRange, toDateInput, toMonthInput } from "@/lib/dates";
 import type { Order } from "@/lib/types";
 
 type Mode = "day" | "month";
 
 export default function Report({ refreshKey }: { refreshKey: number }) {
+  const { lang, t } = useLang();
+  const loc = lang === "th" ? "th-TH" : [];
   const [mode, setMode] = useState<Mode>("day");
   const [day, setDay] = useState(toDateInput(new Date()));
   const [month, setMonth] = useState(toMonthInput(new Date()));
@@ -85,8 +88,8 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
 
   const title =
     mode === "day"
-      ? fromDateInput(day).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-      : fromDateInput(month + "-01").toLocaleDateString([], { month: "long", year: "numeric" });
+      ? fromDateInput(day).toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+      : fromDateInput(month + "-01").toLocaleDateString(loc, { month: "long", year: "numeric" });
 
   const shift = (d: number) => {
     if (mode === "day") {
@@ -122,8 +125,8 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
     <div className="stack" style={{ gap: 14 }}>
       <div className="row wrap">
         <div className="seg">
-          <button className={mode === "day" ? "on" : ""} onClick={() => setMode("day")}>Daily</button>
-          <button className={mode === "month" ? "on" : ""} onClick={() => setMode("month")}>Monthly</button>
+          <button className={mode === "day" ? "on" : ""} onClick={() => setMode("day")}>{t("daily")}</button>
+          <button className={mode === "month" ? "on" : ""} onClick={() => setMode("month")}>{t("monthly")}</button>
         </div>
         <button className="btn" onClick={() => shift(-1)}>‹</button>
         {mode === "day" ? (
@@ -134,7 +137,7 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
         <button className="btn" onClick={() => shift(1)}>›</button>
         <span className="grow" />
         <button className="btn btn-primary" onClick={exportJpg} disabled={exporting || loading}>
-          {exporting ? "Exporting…" : "Export JPG"}
+          {exporting ? t("exporting") : t("exportJpg")}
         </button>
       </div>
       {err && <div className="error">{err}</div>}
@@ -146,43 +149,43 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
             <img src="/logo.png" alt="" style={{ width: 40, height: 40 }} />
             <div>
               <h2 style={{ fontSize: 22 }}>{BRAND.name}</h2>
-              <div className="muted small">{mode === "day" ? "Daily" : "Monthly"} sales report</div>
+              <div className="muted small">{mode === "day" ? t("dailyReport") : t("monthlyReport")}</div>
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 700 }}>{title}</div>
-            <div className="muted small">Generated {new Date().toLocaleString()}</div>
+            <div className="muted small">{t("generated")} {new Date().toLocaleString(loc)}</div>
           </div>
         </div>
 
         {loading ? (
-          <div className="muted" style={{ padding: 30 }}>Loading…</div>
+          <div className="muted" style={{ padding: 30 }}>{t("loading")}</div>
         ) : (
           <>
             <div className="stats">
-              <div className="stat"><div className="k">Total sales</div><div className="v price">{money(r.total)}</div></div>
-              <div className="stat"><div className="k">Paid orders</div><div className="v">{r.count}</div></div>
-              <div className="stat"><div className="k">Average order</div><div className="v">{money(r.avg)}</div></div>
-              <div className="stat"><div className="k">QR / Staff</div><div className="v">{r.qrOrders} / {r.staffOrders}</div></div>
+              <div className="stat"><div className="k">{t("totalSales")}</div><div className="v price">{money(r.total)}</div></div>
+              <div className="stat"><div className="k">{t("paidOrders")}</div><div className="v">{r.count}</div></div>
+              <div className="stat"><div className="k">{t("avgOrder")}</div><div className="v">{money(r.avg)}</div></div>
+              <div className="stat"><div className="k">{t("qrStaff")}</div><div className="v">{r.qrOrders} / {r.staffOrders}</div></div>
             </div>
 
-            <h3 style={{ margin: "18px 0 6px" }}>By payment method</h3>
+            <h3 style={{ margin: "18px 0 6px" }}>{t("byPay")}</h3>
             <table className="table">
-              <thead><tr><th>Method</th><th className="num">Orders</th><th className="num">Amount</th></tr></thead>
+              <thead><tr><th>{t("method")}</th><th className="num">{t("orders")}</th><th className="num">{t("amount")}</th></tr></thead>
               <tbody>
                 {Object.entries(r.byPay).map(([m, v]) => (
-                  <tr key={m}><td>{PAYMENT_LABELS[m] ?? m}</td><td className="num">{v.count}</td><td className="num">{money(v.total)}</td></tr>
+                  <tr key={m}><td>{payLabel(lang, m)}</td><td className="num">{v.count}</td><td className="num">{money(v.total)}</td></tr>
                 ))}
-                <tr><td><strong>Total</strong></td><td className="num"><strong>{r.count}</strong></td><td className="num"><strong>{money(r.total)}</strong></td></tr>
+                <tr><td><strong>{t("total")}</strong></td><td className="num"><strong>{r.count}</strong></td><td className="num"><strong>{money(r.total)}</strong></td></tr>
               </tbody>
             </table>
 
-            <h3 style={{ margin: "18px 0 6px" }}>By menu item</h3>
+            <h3 style={{ margin: "18px 0 6px" }}>{t("byItem")}</h3>
             {r.items.length === 0 ? (
-              <div className="muted small">No items sold.</div>
+              <div className="muted small">{t("noItemsSold")}</div>
             ) : (
               <table className="table">
-                <thead><tr><th>Item</th><th className="num">Qty</th><th className="num">Amount</th></tr></thead>
+                <thead><tr><th>{t("item")}</th><th className="num">{t("qty")}</th><th className="num">{t("amount")}</th></tr></thead>
                 <tbody>
                   {r.items.map(([n, v]) => (
                     <tr key={n}><td>{n}</td><td className="num">{v.qty}</td><td className="num">{money(v.total)}</td></tr>
@@ -193,13 +196,13 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
 
             {mode === "month" && r.days.length > 0 && (
               <>
-                <h3 style={{ margin: "18px 0 6px" }}>By day</h3>
+                <h3 style={{ margin: "18px 0 6px" }}>{t("byDay")}</h3>
                 <table className="table">
-                  <thead><tr><th>Date</th><th className="num">Orders</th><th className="num">Amount</th></tr></thead>
+                  <thead><tr><th>{t("date")}</th><th className="num">{t("orders")}</th><th className="num">{t("amount")}</th></tr></thead>
                   <tbody>
                     {r.days.map(([d, v]) => (
                       <tr key={d}>
-                        <td>{fromDateInput(d).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</td>
+                        <td>{fromDateInput(d).toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short" })}</td>
                         <td className="num">{v.count}</td><td className="num">{money(v.total)}</td>
                       </tr>
                     ))}
@@ -208,16 +211,16 @@ export default function Report({ refreshKey }: { refreshKey: number }) {
               </>
             )}
 
-            <h3 style={{ margin: "18px 0 6px" }}>Summary</h3>
+            <h3 style={{ margin: "18px 0 6px" }}>{t("summary")}</h3>
             <table className="table">
               <tbody>
-                <tr><td>Items sold (menu price)</td><td className="num">{money(r.gross)}</td></tr>
-                <tr><td>Discounts</td><td className="num">{money(r.discounts)}</td></tr>
-                <tr><td>Extra charges</td><td className="num">{money(r.surcharges)}</td></tr>
-                <tr><td><strong>Total collected</strong></td><td className="num"><strong>{money(r.total)}</strong></td></tr>
-                <tr><td className="muted">Cancelled orders</td><td className="num muted">{r.cancelled}</td></tr>
+                <tr><td>{t("itemsSold")}</td><td className="num">{money(r.gross)}</td></tr>
+                <tr><td>{t("discounts")}</td><td className="num">{money(r.discounts)}</td></tr>
+                <tr><td>{t("extraCharges")}</td><td className="num">{money(r.surcharges)}</td></tr>
+                <tr><td><strong>{t("totalCollected")}</strong></td><td className="num"><strong>{money(r.total)}</strong></td></tr>
+                <tr><td className="muted">{t("cancelledOrders")}</td><td className="num muted">{r.cancelled}</td></tr>
                 <tr>
-                  <td className="muted">Unpaid orders</td>
+                  <td className="muted">{t("unpaidOrders")}</td>
                   <td className="num muted">{r.unpaid.length} ({money(r.unpaid.reduce((s, o) => s + Number(o.total), 0))})</td>
                 </tr>
               </tbody>

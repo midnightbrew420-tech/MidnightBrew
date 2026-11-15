@@ -31,7 +31,7 @@ export type Order = {
   id: string;
   order_no: number;
   customer_name: string;
-  location?: string | null; // THR / EUP / MG (null for staff entries and older orders)
+  location?: string | null; // THR / EUP / MG / MNB (null for staff entries and older orders)
   room?: string | null; // room number, for Mango (MG)
   note: string | null;
   source: "customer" | "staff";
@@ -86,6 +86,7 @@ export const LOCATIONS = [
   { code: "THR", name: "The High Roof Top" },
   { code: "EUP", name: "Euphoria" },
   { code: "MG", name: "Mango Hostel" },
+  { code: "MNB", name: "Midnight Brew" },
 ] as const;
 export type LocationCode = (typeof LOCATIONS)[number]["code"];
 export const isLocation = (c: unknown): c is LocationCode => LOCATIONS.some((l) => l.code === c);
@@ -101,7 +102,7 @@ export function orderPlace(o: { location?: string | null; room?: string | null; 
   room: string | null;
   note: string | null;
 } {
-  const m = (o.note ?? "").match(/^\[(THR|EUP|MG)(?: ([^\]]{1,20}))?\]\s*/);
+  const m = (o.note ?? "").match(/^\[(THR|EUP|MG|MNB)(?: ([^\]]{1,20}))?\]\s*/);
   const note = m ? (o.note ?? "").slice(m[0].length) || null : o.note;
   if (isLocation(o.location)) return { location: o.location, room: o.room?.trim() || (m?.[2] ?? null), note };
   return { location: m ? m[1] : null, room: m?.[2] ?? null, note };

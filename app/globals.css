@@ -351,8 +351,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .loc-tag.loc-THR { background: #3b6fb6; }
 .loc-tag.loc-EUP { background: #8a4fb0; }
 .loc-tag.loc-MG  { background: #d9822b; }
+.loc-tag.loc-MNB { background: #111111; }
 .place-pick { display: flex; flex-direction: column; gap: 6px; }
-.place-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.place-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .place-btn {
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px;
   border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 12px; line-height: 1.2;
@@ -365,3 +366,10 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .room-field input { font-size: 18px; font-weight: 700; letter-spacing: .04em; }
 .room-field.missing > span { color: var(--danger); font-weight: 600; }
 .room-field.missing input { border-color: var(--danger); }
+
+/* Language switch (ไทย / EN) */
+.lang-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); flex: none; }
+.lang-toggle button { border: 0; background: transparent; padding: 7px 11px; font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1; }
+.lang-toggle button.on { background: var(--accent); color: var(--accent-ink); }
+.brand .lang-toggle { margin-right: 8px; }
+.welcome-lang { display: flex; justify-content: center; margin-top: 14px; }

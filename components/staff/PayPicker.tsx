@@ -1,5 +1,5 @@
 "use client";
-import { PAYMENT_LABELS } from "@/lib/brand";
+import { payLabel, useLang } from "@/lib/i18n";
 
 export default function PayPicker({
   methods,
@@ -10,11 +10,12 @@ export default function PayPicker({
   value: string | null;
   onChange: (m: string) => void;
 }) {
+  const { lang } = useLang();
   return (
     <div className="pay-grid">
       {methods.map((m) => (
         <button key={m} type="button" className={`btn ${value === m ? "on" : ""}`} onClick={() => onChange(m)}>
-          {PAYMENT_LABELS[m]}
+          {payLabel(lang, m)}
         </button>
       ))}
     </div>
