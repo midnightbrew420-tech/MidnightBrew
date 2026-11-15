@@ -4,8 +4,10 @@ import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/brand";
 import { MenuItem, priceOptions } from "@/lib/types";
 import Thumb from "@/components/Thumb";
+import { useLang } from "@/lib/i18n";
 
 export default function MenuToggle({ menu, onChanged }: { menu: MenuItem[]; onChanged: () => void }) {
+  const { lang, t, cat: catName } = useLang();
   const [err, setErr] = useState("");
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const groups: Record<string, MenuItem[]> = {};
@@ -28,22 +30,22 @@ export default function MenuToggle({ menu, onChanged }: { menu: MenuItem[]; onCh
   return (
     <div className="stack" style={{ gap: 16 }}>
       <div className="muted">
-        {off ? `${off} item${off > 1 ? "s" : ""} switched off (shown as “Sold out” to customers).` : "Everything is available."}
+        {off ? t("offCount", { n: off }) : t("allAvailable")}
       </div>
       {err && <div className="error">{err}</div>}
       {Object.entries(groups).map(([cat, items]) => (
         <div key={cat} className="card" style={{ padding: "4px 14px" }}>
-          <h3 style={{ margin: "12px 0 4px", textTransform: "uppercase", letterSpacing: "0.12em", fontSize: 15 }}>{cat}</h3>
+          <h3 style={{ margin: "12px 0 4px", textTransform: "uppercase", letterSpacing: "0.12em", fontSize: 15 }}>{catName(cat)}</h3>
           {items.map((m) => {
             const on = pending[m.id] ?? m.available;
             return (
               <label className="line" key={m.id} style={{ cursor: "pointer" }}>
                 <Thumb item={m} size={40} />
                 <div className="grow">
-                  <div style={{ fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ fontWeight: 600 }}>{lang === "th" && m.name_th ? m.name_th : m.name}</div>
                   <div className="muted small">
-                    {priceOptions(m).map((o) => `${o.label ? o.label + " " : ""}${money(o.price)}`).join(" / ")} ·{" "}
-                    {on ? "Available" : "Sold out"}
+                    {priceOptions(m).map((o) => `${o.variant ? t(o.variant) + " " : ""}${money(o.price)}`).join(" / ")} ·{" "}
+                    {on ? t("available") : t("soldOut")}
                   </div>
                 </div>
                 <span className="switch">

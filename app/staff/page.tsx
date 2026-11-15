@@ -5,6 +5,8 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { BRAND } from "@/lib/brand";
 import { MenuItem, Order, sortMenu, orderPlace } from "@/lib/types";
+import { Lang, translate, useLang } from "@/lib/i18n";
+import LangToggle from "@/components/LangToggle";
 import Active from "@/components/staff/Active";
 import AddItems from "@/components/staff/AddItems";
 import History from "@/components/staff/History";
@@ -16,12 +18,12 @@ import { audioReady, chime, unlockAudio } from "@/components/staff/alarm";
 import { askNotifications, notify } from "@/lib/notify";
 
 type Tab = "active" | "add" | "history" | "report" | "menu";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "active", label: "Active" },
-  { id: "add", label: "Add items" },
-  { id: "history", label: "Paid / Cancelled" },
-  { id: "report", label: "Report" },
-  { id: "menu", label: "Menu on/off" },
+const TABS: { id: Tab; label: "tabActive" | "tabAdd" | "tabHistory" | "tabReport" | "tabMenu" }[] = [
+  { id: "active", label: "tabActive" },
+  { id: "add", label: "tabAdd" },
+  { id: "history", label: "tabHistory" },
+  { id: "report", label: "tabReport" },
+  { id: "menu", label: "tabMenu" },
 ];
 
 export default function StaffPage() {
@@ -41,12 +43,13 @@ export default function StaffPage() {
   }, []);
 
   if (configError) return <div className="login card error">{configError}</div>;
-  if (session === undefined) return <div className="empty">Loading…</div>;
+  if (session === undefined) return <div className="empty">{translate(langNow(), "loading")}</div>;
   if (!session) return <Login />;
   return <Dashboard email={session.user.email ?? ""} />;
 }
 
 function Login() {
+  const { t } = useLang();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
@@ -69,14 +72,17 @@ function Login() {
         <img src="/logo.png" alt="" />
         <div>
           <h1>{BRAND.name}</h1>
-          <div className="tag">Staff</div>
+          <div className="tag">{t("staff")}</div>
         </div>
       </div>
-      <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
-      <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <LangToggle />
+      </div>
+      <input type="email" placeholder={t("email")} value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
+      <input type="password" placeholder={t("password")} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
       {err && <div className="error">{err}</div>}
       <button className="btn btn-primary btn-block" disabled={busy}>
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? t("signingIn") : t("signIn")}
       </button>
     </form>
   );
@@ -92,6 +98,7 @@ const SUPABASE_HOST = (() => {
 })();
 
 function Dashboard({ email }: { email: string }) {
+  const { lang, t } = useLang();
   const [tab, setTab] = useState<Tab>("active");
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [active, setActive] = useState<Order[]>([]);
@@ -139,7 +146,7 @@ function Dashboard({ email }: { email: string }) {
       return;
     }
     if (!data) {
-      setShopError("The shop settings row is missing from the shop_status table.");
+      setShopError(translate(langNow(), "shopRowMissing"));
       return;
     }
     setShopError("");
@@ -168,7 +175,7 @@ function Dashboard({ email }: { email: string }) {
   const toggleShop = async () => {
     if (shopOpen === null || shopBusy) return;
     const next = !shopOpen;
-    if (!next && !window.confirm("Close the shop? Customers will see \"We're closed\" and can't order until you open again.")) return;
+    if (!next && !window.confirm(t("confirmClose"))) return;
     setShopBusy(true);
     const { error } = await supabase()
       .from("shop_status")
@@ -176,7 +183,7 @@ function Dashboard({ email }: { email: string }) {
       .eq("id", 1);
     setShopBusy(false);
     if (error) {
-      window.alert(`Couldn't change it: ${error.message}`);
+      window.alert(t("cantChange", { msg: error.message }));
       return;
     }
     setShopOpen(next);
@@ -220,7 +227,7 @@ function Dashboard({ email }: { email: string }) {
     const ring = () => {
       chime();
       flip = !flip;
-      document.title = flip ? `🔔 ${unseen.length} NEW ORDER${unseen.length > 1 ? "S" : ""}` : `Staff · ${BRAND.name}`;
+      document.title = flip ? translate(langNow(), "newOrderTitle", { n: unseen.length }) : `Staff · ${BRAND.name}`;
     };
     ring();
     const t = setInterval(ring, 2500);
@@ -255,6 +262,7 @@ function Dashboard({ email }: { email: string }) {
         <img src="/logo.png" alt="" />
         <strong className="display" style={{ fontSize: 18 }}>{BRAND.name}</strong>
         <span className="grow" />
+        <LangToggle />
         <button
           className={`btn shop-toggle ${shopOpen === null ? "" : shopOpen ? "is-open" : "is-closed"}`}
           onClick={toggleShop}
@@ -262,59 +270,59 @@ function Dashboard({ email }: { email: string }) {
           aria-pressed={shopOpen === null ? undefined : shopOpen}
           title={
             shopOpen === null
-              ? shopError || "Loading shop status…"
+              ? shopError || t("tipLoadingShop")
               : shopOpen
-              ? "Customers can order. Tap to close the shop."
-              : "Ordering is paused. Tap to open the shop."
+              ? t("tipOpen")
+              : t("tipClosed")
           }
         >
           <span className="shop-dot" aria-hidden />
-          {shopOpen === null ? (shopError ? "Open/Closed ?" : "…") : shopOpen ? "Open" : "Closed"}
+          {shopOpen === null ? (shopError ? t("shopUnknown") : "…") : shopOpen ? t("shopOpen") : t("shopClosed")}
         </button>
         <button
           className="btn"
           onClick={() => { setHoursError(""); setEditHours(hours); }}
           disabled={shopOpen === null}
-          title={shopOpen === null ? shopError || "Loading…" : hours || "Set opening hours"}
+          title={shopOpen === null ? shopError || t("loading") : hours || t("setHours")}
         >
-          Hours
+          {t("hours")}
         </button>
-        <button className="btn" onClick={() => setShowQr(true)}>QR code</button>
+        <button className="btn" onClick={() => setShowQr(true)}>{t("qrCode")}</button>
         <button className="btn btn-ghost small" onClick={() => supabase().auth.signOut()} title={email}>
-          Sign out
+          {t("signOut")}
         </button>
       </div>
 
       {shopError && (
         <div className="shop-error" role="alert">
           <div>
-            <strong>Open/Closed and Hours aren&apos;t working yet.</strong>
+            <strong>{t("shopErrTitle")}</strong>
             <div className="small">
-              Run the shop SQL (<code>20261113000000_shop_open_closed.sql</code>) in the Supabase project this app uses
+              {t("shopErrRun")} (<code>20261113000000_shop_open_closed.sql</code>) {t("shopErrIn")}
               {SUPABASE_HOST && (
                 <>
                   : <code>{SUPABASE_HOST}</code>
                 </>
               )}
-              , then tap Retry.
+              {t("shopErrThen")}
             </div>
-            <div className="small muted-light">Details: {shopError}</div>
+            <div className="small muted-light">{t("details")} {shopError}</div>
           </div>
-          <button className="btn" onClick={() => loadShop()}>Retry</button>
+          <button className="btn" onClick={() => loadShop()}>{t("retry")}</button>
         </div>
       )}
 
       {(!soundOn || notifPerm === "default") && (
         <div className="row between wrap" style={{ padding: "10px 16px", background: "var(--surface-2)" }}>
-          <span className="small">Turn on alerts so new orders ring on this device.</span>
-          <button className="btn btn-primary" onClick={enableAlerts}>Enable sound & notifications</button>
+          <span className="small">{t("alertsHint")}</span>
+          <button className="btn btn-primary" onClick={enableAlerts}>{t("enableAlerts")}</button>
         </div>
       )}
 
       {unseen.length > 0 && (
         <div className="alert-banner">
           <span>
-            🔔 {unseen.length} new order{unseen.length > 1 ? "s" : ""}: {unseen.map((o) => { const { location: l, room: r } = orderPlace(o); return l ? `${o.customer_name} (${l}${r ? ` ${r}` : ""})` : o.customer_name; }).join(", ")}
+            🔔 {t("newOrdersBanner", { n: unseen.length })} {unseen.map((o) => { const { location: l, room: r } = orderPlace(o); return l ? `${o.customer_name} (${l}${r ? ` ${r}` : ""})` : o.customer_name; }).join(", ")}
           </span>
           <button
             className="btn"
@@ -324,7 +332,7 @@ function Dashboard({ email }: { email: string }) {
               openOrder(unseen[0]);
             }}
           >
-            Open
+            {t("openOrder")}
           </button>
         </div>
       )}
@@ -332,7 +340,7 @@ function Dashboard({ email }: { email: string }) {
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? "on" : ""}`} onClick={() => setTab(t.id)}>
-            {t.label}
+            {translate(lang, t.label)}
             {t.id === "active" && active.length > 0 && <span className="badge">{active.length}</span>}
           </button>
         ))}
@@ -362,22 +370,22 @@ function Dashboard({ email }: { email: string }) {
       {editHours !== null && (
         <div className="overlay" onClick={() => setEditHours(null)}>
           <div className="sheet stack" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ margin: 0 }}>Opening hours</h2>
+            <h2 style={{ margin: 0 }}>{t("hoursTitle")}</h2>
             <p className="muted small" style={{ margin: 0 }}>
-              Shown at the top of the customer menu at all times. Leave empty to hide it.
+              {t("hoursHelp")}
             </p>
             <input
               value={editHours}
               onChange={(e) => setEditHours(e.target.value)}
               maxLength={120}
-              placeholder="e.g. Every day 6 PM – 2 AM"
+              placeholder={t("hoursPlaceholder")}
               autoFocus
             />
             {hoursError && <div className="error">{hoursError}</div>}
             <div className="row">
-              <button className="btn grow" onClick={() => setEditHours(null)}>Cancel</button>
+              <button className="btn grow" onClick={() => setEditHours(null)}>{t("cancel")}</button>
               <button className="btn btn-primary grow" onClick={saveHours} disabled={shopBusy}>
-                {shopBusy ? "Saving…" : "Save"}
+                {shopBusy ? t("saving") : t("save")}
               </button>
             </div>
           </div>
@@ -390,5 +398,19 @@ function Dashboard({ email }: { email: string }) {
 function notifyNewOrder(o: Order) {
   const items = (o.order_items ?? []).map((i) => `${i.qty}× ${i.name}`).join(", ");
   const { location: l, room: r } = orderPlace(o);
-  notify(`New order: ${o.customer_name}${l ? ` · ${l}${r ? ` ${r}` : ""}` : ""}`, items || `Order #${o.order_no}`, o.id);
+  const lang = langNow();
+  notify(
+    translate(lang, "notifyNew", { who: `${o.customer_name}${l ? ` · ${l}${r ? ` ${r}` : ""}` : ""}` }),
+    items || translate(lang, "orderNo", { n: o.order_no }),
+    o.id
+  );
+}
+
+// The language chosen on this device, for code outside components (alerts, page title).
+function langNow(): Lang {
+  try {
+    const v = localStorage.getItem("mb_lang");
+    if (v === "th" || v === "en") return v;
+  } catch {}
+  return typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("th") ? "th" : "en";
 }

@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { ACTIVE_ORDER_PAYMENTS, PAYMENT_LABELS, money } from "@/lib/brand";
+import { ACTIVE_ORDER_PAYMENTS, money } from "@/lib/brand";
+import { payLabel, statusLabel, sugarText, useLang } from "@/lib/i18n";
 import { dateTimeShort } from "@/lib/dates";
 import { Order, sugarLabel, orderPlace } from "@/lib/types";
 import LocationTag from "@/components/LocationTag";
@@ -16,6 +17,7 @@ export default function OrderModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const { lang, t } = useLang();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [paying, setPaying] = useState(false);
@@ -50,10 +52,10 @@ export default function OrderModal({
               </div>
             )}
             <div className="muted small">
-              #{order.order_no} · {dateTimeShort(order.created_at)} · {order.source === "staff" ? "Staff entry" : "QR order"}
+              #{order.order_no} · {dateTimeShort(order.created_at)} · {order.source === "staff" ? t("staffEntry") : t("qrOrder")}
             </div>
           </div>
-          <span className={`pill ${order.status}`}>{order.status}</span>
+          <span className={`pill ${order.status}`}>{statusLabel(lang, order.status)}</span>
         </div>
 
         <div style={{ marginTop: 12 }}>
@@ -62,7 +64,7 @@ export default function OrderModal({
               <strong style={{ width: 34 }}>{li.qty}×</strong>
               <span className="grow">
                 {li.name}
-                {li.sugar != null && <span className="sugar-tag">{sugarLabel(li.sugar)}</span>}
+                {li.sugar != null && <span className="sugar-tag">{sugarText(lang, li.sugar)}</span>}
               </span>
               <span>{money(li.line_total)}</span>
             </div>
@@ -70,28 +72,28 @@ export default function OrderModal({
           {Number(order.adjustment) !== 0 && (
             <>
               <div className="line muted">
-                <span className="grow">Subtotal</span>
+                <span className="grow">{t("subtotal")}</span>
                 <span>{money(order.subtotal)}</span>
               </div>
               <div className="line muted">
-                <span className="grow">{Number(order.adjustment) < 0 ? "Discount" : "Surcharge"}</span>
+                <span className="grow">{Number(order.adjustment) < 0 ? t("discount") : t("surcharge")}</span>
                 <span>{money(order.adjustment)}</span>
               </div>
             </>
           )}
           <div className="total-row">
-            <span>Total</span>
+            <span>{t("total")}</span>
             <span className="price">{money(order.total)}</span>
           </div>
           {orderPlace(order).note && (
             <div className="card" style={{ padding: 10, marginBottom: 12 }}>
-              <span className="muted small">Note: </span>
+              <span className="muted small">{t("noteLabel")} </span>
               {orderPlace(order).note}
             </div>
           )}
           {order.payment_method && (
             <div className="muted small" style={{ marginBottom: 12 }}>
-              Paid by <strong>{PAYMENT_LABELS[order.payment_method]}</strong> · {dateTimeShort(order.paid_at)}
+              {t("paidBy")} <strong>{payLabel(lang, order.payment_method)}</strong> · {dateTimeShort(order.paid_at)}
             </div>
           )}
         </div>
@@ -105,7 +107,7 @@ export default function OrderModal({
               disabled={busy}
               onClick={() => update({ status: "taken", taken_at: now(), seen: true })}
             >
-              Take order
+              {t("takeOrder")}
             </button>
           )}
           {order.status === "taken" && (
@@ -114,28 +116,28 @@ export default function OrderModal({
               disabled={busy}
               onClick={() => update({ status: "ready", ready_at: now() })}
             >
-              Ready (tell the customer)
+              {t("readyTell")}
             </button>
           )}
           {(order.status === "ready" || order.status === "unpaid") && (
             <button className="btn btn-ok btn-block" disabled={busy} onClick={() => setPaying(true)}>
-              Order paid
+              {t("orderPaid")}
             </button>
           )}
           {open && (
             <div className="row">
               {order.status !== "unpaid" && (
                 <button className="btn grow" disabled={busy} onClick={() => setConfirm("unpaid")}>
-                  Mark unpaid
+                  {t("markUnpaid")}
                 </button>
               )}
               <button className="btn btn-danger grow" disabled={busy} onClick={() => setConfirm("cancelled")}>
-                Cancel order
+                {t("cancelOrder")}
               </button>
             </div>
           )}
           <button className="btn btn-ghost" onClick={onClose}>
-            Close
+            {t("close")}
           </button>
         </div>
       </div>
@@ -143,14 +145,14 @@ export default function OrderModal({
       {paying && (
         <div className="overlay" onClick={(e) => (e.stopPropagation(), setPaying(false))}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <h2>How did {order.customer_name} pay?</h2>
+            <h2>{t("howPay", { name: order.customer_name })}</h2>
             <p className="muted" style={{ marginTop: 0 }}>
-              Total <strong className="price">{money(order.total)}</strong>
+              {t("total")} <strong className="price">{money(order.total)}</strong>
             </p>
             <PayPicker methods={ACTIVE_ORDER_PAYMENTS} value={method} onChange={setMethod} />
             <div className="row" style={{ marginTop: 14 }}>
               <button className="btn grow" onClick={() => setPaying(false)}>
-                Back
+                {t("back")}
               </button>
               <button
                 className="btn btn-ok grow"
@@ -163,7 +165,7 @@ export default function OrderModal({
                     onClose();
                 }}
               >
-                Confirm {method ? PAYMENT_LABELS[method] : ""} payment
+                {t("confirmPay", { m: method ? payLabel(lang, method) : "" })}
               </button>
             </div>
           </div>
@@ -173,15 +175,15 @@ export default function OrderModal({
       {confirm && (
         <div className="overlay" onClick={(e) => (e.stopPropagation(), setConfirm(null))}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <h2>{confirm === "cancelled" ? "Cancel this order?" : "Mark as unpaid?"}</h2>
+            <h2>{confirm === "cancelled" ? t("cancelQ") : t("unpaidQ")}</h2>
             <p className="muted">
               {confirm === "cancelled"
-                ? "It will move to Paid/Cancelled history and won't count in sales."
-                : "Use this when the customer left without paying. It stays in history and can still be marked paid later."}
+                ? t("cancelInfo")
+                : t("unpaidInfo")}
             </p>
             <div className="row">
               <button className="btn grow" onClick={() => setConfirm(null)}>
-                Back
+                {t("back")}
               </button>
               <button
                 className={`btn grow ${confirm === "cancelled" ? "btn-danger" : "btn-primary"}`}
@@ -190,7 +192,7 @@ export default function OrderModal({
                   if (await update({ status: confirm, closed_at: now(), seen: true })) onClose();
                 }}
               >
-                Yes, {confirm === "cancelled" ? "cancel" : "mark unpaid"}
+                {confirm === "cancelled" ? t("yesCancel") : t("yesUnpaid")}
               </button>
             </div>
           </div>

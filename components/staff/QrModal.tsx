@@ -2,10 +2,12 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import QRCode from "qrcode";
 import { BRAND } from "@/lib/brand";
+import { useLang } from "@/lib/i18n";
 
 const FILE_NAME = `${BRAND.name.replace(/\s+/g, "-")}-QR.png`;
 
 export default function QrModal({ onClose }: { onClose: () => void }) {
+  const { t } = useLang();
   const [url, setUrl] = useState("");
   const [img, setImg] = useState("");
   // Prepared ahead of the tap: iPhone Safari only opens the share sheet if
@@ -41,17 +43,17 @@ export default function QrModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-        <h2>Ordering QR code</h2>
-        <p className="muted" style={{ marginTop: 0 }}>One code for every table. Print it and place it on tables or the counter.</p>
+        <h2>{t("qrTitle")}</h2>
+        <p className="muted" style={{ marginTop: 0 }}>{t("qrHelp")}</p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {img && <img src={img} alt="QR code" style={{ width: "100%", maxWidth: 320, borderRadius: 12 }} />}
         <div className="small muted" style={{ margin: "8px 0 4px", wordBreak: "break-all" }}>{url}</div>
-        <div className="small muted" style={{ marginBottom: 14 }}>On a phone you can also press and hold the code to save it.</div>
+        <div className="small muted" style={{ marginBottom: 14 }}>{t("qrHold")}</div>
         <div className="row">
           <a className="btn btn-primary grow" href={img} download={FILE_NAME} onClick={shareFile}>
-            Save QR code
+            {t("saveQr")}
           </a>
-          <button className="btn grow" onClick={onClose}>Close</button>
+          <button className="btn grow" onClick={onClose}>{t("close")}</button>
         </div>
       </div>
     </div>
