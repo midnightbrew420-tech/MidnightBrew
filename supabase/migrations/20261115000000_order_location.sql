@@ -1,8 +1,8 @@
 -- =====================================================================
 -- Order location: which of the three places the customer is at.
---   THR = The High Roof Top, EUP = Euphoria, MG = Mango
+--   THR = The High Roof Top, EUP = Euphoria, MG = Mango Hostel
 --   orders.location (null for staff entries and older orders)
---   orders.room: room number, for Mango (MG)
+--   orders.room: the guest's room number, for Mango Hostel (MG)
 --   place_order() takes p_location and p_room as well.
 -- Safe to re-run.
 -- =====================================================================
@@ -44,7 +44,7 @@ begin
   end if;
 
   if upper(trim(p_location)) = 'MG' and nullif(trim(coalesce(p_room, '')), '') is null then
-    raise exception 'Please enter your room number';
+    raise exception 'Please enter your room number at Mango Hostel';
   end if;
 
   insert into orders (customer_name, location, room, note, source, status)

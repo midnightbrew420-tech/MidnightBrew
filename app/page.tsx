@@ -256,7 +256,7 @@ export default function CustomerMenu() {
     const roomNo = needsRoom ? room.trim().slice(0, ROOM_MAX) : "";
     if (needsRoom && !roomNo) {
       setRoomMissing(true);
-      setError("Please enter your room number.");
+      setError("Please enter your room number at Mango Hostel.");
       return;
     }
     if (unavailableInCart.length) {
@@ -689,19 +689,19 @@ export default function CustomerMenu() {
                 </div>
                 {place && NEEDS_ROOM.includes(place) && (
                   <label className={`stack room-field ${roomMissing && !room.trim() ? "missing" : ""}`} style={{ gap: 4 }}>
-                    <span className="small muted">Room number</span>
+                    <span className="small muted">Your room number at Mango Hostel</span>
                     <input
                       value={room}
                       onChange={(e) => {
                         setRoom(e.target.value);
                         saveTab(ROOM_KEY, e.target.value.trim() || null);
                         setRoomMissing(false);
-                        if (error === "Please enter your room number.") setError("");
+                        if (error === "Please enter your room number at Mango Hostel.") setError("");
                       }}
                       maxLength={ROOM_MAX}
                       inputMode="text"
                       autoComplete="off"
-                      placeholder="e.g. 204"
+                      placeholder="Type your room number, e.g. 204"
                     />
                   </label>
                 )}

@@ -85,7 +85,7 @@ export function lineName(m: MenuItem, v: Variant) {
 export const LOCATIONS = [
   { code: "THR", name: "The High Roof Top" },
   { code: "EUP", name: "Euphoria" },
-  { code: "MG", name: "Mango" },
+  { code: "MG", name: "Mango Hostel" },
 ] as const;
 export type LocationCode = (typeof LOCATIONS)[number]["code"];
 export const isLocation = (c: unknown): c is LocationCode => LOCATIONS.some((l) => l.code === c);
