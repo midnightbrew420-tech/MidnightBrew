@@ -31,6 +31,7 @@ export type Order = {
   id: string;
   order_no: number;
   customer_name: string;
+  location?: string | null; // THR / EUP / MG (null for staff entries and older orders)
   note: string | null;
   source: "customer" | "staff";
   status: OrderStatus;
@@ -79,6 +80,24 @@ export function lineName(m: MenuItem, v: Variant) {
 }
 
 // Sugar level (%) for drinks. Snacks and extras have none.
+// The three places customers order from with the shared QR code.
+export const LOCATIONS = [
+  { code: "THR", name: "The High Roof Top" },
+  { code: "EUP", name: "Euphoria" },
+  { code: "MG", name: "Mango" },
+] as const;
+export type LocationCode = (typeof LOCATIONS)[number]["code"];
+export const isLocation = (c: unknown): c is LocationCode => LOCATIONS.some((l) => l.code === c);
+export const locationName = (c: string | null | undefined) => LOCATIONS.find((l) => l.code === c)?.name ?? "";
+
+// An order's location and note. If the database doesn't have the location column yet,
+// the menu sends the location at the start of the note instead ("[THR] no ice").
+export function orderPlace(o: { location?: string | null; note: string | null }): { location: string | null; note: string | null } {
+  const m = (o.note ?? "").match(/^\[(THR|EUP|MG)\]\s*/);
+  const note = m ? (o.note ?? "").slice(m[0].length) || null : o.note;
+  return { location: isLocation(o.location) ? o.location : m ? m[1] : null, note };
+}
+
 export const SUGAR_LEVELS = [0, 25, 50, 75, 100] as const;
 export const DEFAULT_SUGAR = 100;
 const NOT_DRINKS = ["Snacks", "Extra"];

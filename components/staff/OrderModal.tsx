@@ -3,7 +3,8 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { ACTIVE_ORDER_PAYMENTS, PAYMENT_LABELS, money } from "@/lib/brand";
 import { dateTimeShort } from "@/lib/dates";
-import { Order, sugarLabel } from "@/lib/types";
+import { Order, sugarLabel, orderPlace } from "@/lib/types";
+import LocationTag from "@/components/LocationTag";
 import PayPicker from "./PayPicker";
 
 export default function OrderModal({
@@ -43,6 +44,11 @@ export default function OrderModal({
         <div className="row between">
           <div>
             <h2 style={{ marginBottom: 2 }}>{order.customer_name}</h2>
+            {orderPlace(order).location && (
+              <div style={{ margin: "2px 0 4px" }}>
+                <LocationTag code={orderPlace(order).location} full />
+              </div>
+            )}
             <div className="muted small">
               #{order.order_no} · {dateTimeShort(order.created_at)} · {order.source === "staff" ? "Staff entry" : "QR order"}
             </div>
@@ -77,10 +83,10 @@ export default function OrderModal({
             <span>Total</span>
             <span className="price">{money(order.total)}</span>
           </div>
-          {order.note && (
+          {orderPlace(order).note && (
             <div className="card" style={{ padding: 10, marginBottom: 12 }}>
               <span className="muted small">Note: </span>
-              {order.note}
+              {orderPlace(order).note}
             </div>
           )}
           {order.payment_method && (

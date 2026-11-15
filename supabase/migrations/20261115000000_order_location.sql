@@ -1,0 +1,95 @@
+-- =====================================================================
+-- Order location: which of the three places the customer is at.
+--   THR = The High Roof Top, EUP = Euphoria, MG = Mango
+--   orders.location (null for staff entries and older orders)
+--   place_order() takes p_location as well.
+-- Safe to re-run.
+-- =====================================================================
+
+alter table public.orders add column if not exists location text;
+alter table public.orders drop constraint if exists orders_location_check;
+alter table public.orders add constraint orders_location_check
+  check (location is null or location in ('THR', 'EUP', 'MG'));
+
+-- Replace the 3-argument version with one that also takes the location.
+drop function if exists public.place_order(text, jsonb, text);
+
+create or replace function public.place_order(
+  p_customer_name text, p_items jsonb, p_note text default null, p_location text default null
+)
+returns table (id uuid, order_no bigint, total numeric)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order_id uuid;
+  v_order_no bigint;
+  v_subtotal numeric(10,2) := 0;
+  v_item record;
+  v_count int := 0;
+begin
+  if p_customer_name is null or char_length(trim(p_customer_name)) = 0 then
+    raise exception 'Name is required';
+  end if;
+  if p_items is null or jsonb_array_length(p_items) = 0 then
+    raise exception 'Cart is empty';
+  end if;
+
+  insert into orders (customer_name, location, note, source, status)
+  values (
+    left(trim(p_customer_name), 60),
+    case when upper(trim(p_location)) in ('THR', 'EUP', 'MG') then upper(trim(p_location)) end,
+    nullif(left(trim(coalesce(p_note, '')), 300), ''),
+    'customer', 'new'
+  )
+  returning orders.id, orders.order_no into v_order_id, v_order_no;
+
+  for v_item in
+    select * from (
+      select m.id,
+             m.name || case v.variant when 'hot' then ' (Hot)' when 'iced' then ' (Iced)' else '' end as name,
+             nullif(v.variant, '') as variant,
+             case
+               when m.category in ('Snacks', 'Extra') then null
+               when v.sugar in (0, 25, 50, 75, 100) then v.sugar
+             end::smallint as sugar,
+             case v.variant
+               when 'hot'  then m.price_hot
+               when 'iced' then m.price_iced
+               else case when m.price_hot is null and m.price_iced is null then m.price end
+             end as unit_price,
+             v.qty
+      from (
+        select (x->>'id')::uuid as id,
+               lower(coalesce(x->>'variant', '')) as variant,
+               case when (x->>'sugar') ~ '^\d{1,3}$' then (x->>'sugar')::int end as sugar,
+               least(greatest(coalesce((x->>'qty')::int, 1), 1), 50) as qty
+        from jsonb_array_elements(p_items) x
+      ) v
+      join menu_items m on m.id = v.id
+      where m.available = true
+    ) q
+    where q.unit_price is not null
+  loop
+    insert into order_items (order_id, menu_item_id, name, variant, sugar, unit_price, qty, line_total)
+    values (v_order_id, v_item.id, v_item.name, v_item.variant, v_item.sugar, v_item.unit_price, v_item.qty, v_item.unit_price * v_item.qty);
+    v_subtotal := v_subtotal + v_item.unit_price * v_item.qty;
+    v_count := v_count + 1;
+  end loop;
+
+  if v_count = 0 then
+    raise exception 'Sorry, the selected items are no longer available';
+  end if;
+
+  update orders set subtotal = v_subtotal, total = v_subtotal where orders.id = v_order_id;
+
+  return query select v_order_id, v_order_no, v_subtotal;
+end;
+$$;
+
+revoke all on function public.place_order(text, jsonb, text, text) from public;
+grant execute on function public.place_order(text, jsonb, text, text) to anon, authenticated;
+
+-- Let the API see the new column and function straight away.
+notify pgrst, 'reload schema';
