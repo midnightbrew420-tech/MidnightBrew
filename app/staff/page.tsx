@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { BRAND } from "@/lib/brand";
-import { MenuItem, Order, sortMenu } from "@/lib/types";
+import { MenuItem, Order, sortMenu, orderPlace } from "@/lib/types";
 import Active from "@/components/staff/Active";
 import AddItems from "@/components/staff/AddItems";
 import History from "@/components/staff/History";
@@ -314,7 +314,7 @@ function Dashboard({ email }: { email: string }) {
       {unseen.length > 0 && (
         <div className="alert-banner">
           <span>
-            🔔 {unseen.length} new order{unseen.length > 1 ? "s" : ""}: {unseen.map((o) => o.customer_name).join(", ")}
+            🔔 {unseen.length} new order{unseen.length > 1 ? "s" : ""}: {unseen.map((o) => { const { location: l, room: r } = orderPlace(o); return l ? `${o.customer_name} (${l}${r ? ` ${r}` : ""})` : o.customer_name; }).join(", ")}
           </span>
           <button
             className="btn"
@@ -389,5 +389,6 @@ function Dashboard({ email }: { email: string }) {
 
 function notifyNewOrder(o: Order) {
   const items = (o.order_items ?? []).map((i) => `${i.qty}× ${i.name}`).join(", ");
-  notify(`New order: ${o.customer_name}`, items || `Order #${o.order_no}`, o.id);
+  const { location: l, room: r } = orderPlace(o);
+  notify(`New order: ${o.customer_name}${l ? ` · ${l}${r ? ` ${r}` : ""}` : ""}`, items || `Order #${o.order_no}`, o.id);
 }

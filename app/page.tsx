@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { BRAND, money } from "@/lib/brand";
 import {
-  DEFAULT_SUGAR, MenuItem, SUGAR_LEVELS, Variant, cartKey, isDrink, lineName, parseKey, priceOptions, sortMenu, sugarLabel,
+  DEFAULT_SUGAR, LOCATIONS, LocationCode, NEEDS_ROOM, ROOM_MAX, isLocation, MenuItem, SUGAR_LEVELS, Variant, cartKey, isDrink, lineName, parseKey, priceOptions, sortMenu, sugarLabel,
 } from "@/lib/types";
 import { askNotifications, notify } from "@/lib/notify";
 import { chime, unlockAudio } from "@/components/staff/alarm";
@@ -23,6 +23,9 @@ const CARTS_KEY = "mb_carts_by_name";
 const WAIT_KEY = "mb_waiting_order";
 // The customer's name for this visit. Kept only in this browser tab (forgotten when it closes).
 const GUEST_KEY = "mb_guest_name";
+// Where the customer is (THR / EUP / MG). Kept in this browser tab only, like the name.
+const PLACE_KEY = "mb_location";
+const ROOM_KEY = "mb_room"; // Mango room number, this tab only
 // Older versions saved the customer's name and last order on the phone; these are cleared on load.
 const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2", "mb_cart_v3", "mb_waiting_order"];
 
@@ -72,6 +75,10 @@ export default function CustomerMenu() {
   const [picker, setPicker] = useState<Picker | null>(null);
   const [shopOpen, setShopOpen] = useState(true); // staff can close the shop; then ordering pauses
   const [hours, setHours] = useState(""); // opening hours text set by staff
+  const [place, setPlace] = useState<LocationCode | null>(null); // which of the three locations
+  const [placeMissing, setPlaceMissing] = useState(false);
+  const [room, setRoom] = useState(""); // room number (Mango)
+  const [roomMissing, setRoomMissing] = useState(false);
   const [pickSugar, setPickSugar] = useState<number>(DEFAULT_SUGAR);
   const [pickQty, setPickQty] = useState(1);
 
@@ -88,6 +95,18 @@ export default function CustomerMenu() {
     } catch {
       setEntered(false);
     }
+    // Location: from a location QR code (?loc=THR), else what this tab chose before.
+    try {
+      const fromQr = new URLSearchParams(window.location.search).get("loc")?.toUpperCase();
+      const saved = loadTab<string | null>(PLACE_KEY, null);
+      const p = isLocation(fromQr) ? fromQr : isLocation(saved) ? saved : null;
+      if (p) {
+        setPlace(p);
+        saveTab(PLACE_KEY, p);
+      }
+      const r = loadTab<string | null>(ROOM_KEY, null);
+      if (r) setRoom(r);
+    } catch {}
     const w = loadTab<{ id: string } | null>(WAIT_KEY, null);
     if (w?.id) setWaiting({ id: w.id, status: "new" });
     try {
@@ -228,6 +247,18 @@ export default function CustomerMenu() {
       setEntered(false);
       return;
     }
+    if (!place) {
+      setPlaceMissing(true);
+      setError("Please choose your location.");
+      return;
+    }
+    const needsRoom = NEEDS_ROOM.includes(place);
+    const roomNo = needsRoom ? room.trim().slice(0, ROOM_MAX) : "";
+    if (needsRoom && !roomNo) {
+      setRoomMissing(true);
+      setError("Please enter your room number at Mango Hostel.");
+      return;
+    }
     if (unavailableInCart.length) {
       setError("Some items just sold out — please remove them first.");
       return;
@@ -235,11 +266,22 @@ export default function CustomerMenu() {
     setPlacing(true);
     unlockAudio(); // this tap lets the phone chime later, when the order is ready
     askNotifications();
-    const { data, error } = await supabase().rpc("place_order", {
+    const items = cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, sugar: l.sugar, qty: l.qty }));
+    let { data, error } = await supabase().rpc("place_order", {
       p_customer_name: guest,
-      p_items: cartLines.map((l) => ({ id: l.item.id, variant: l.variant || null, sugar: l.sugar, qty: l.qty })),
+      p_items: items,
       p_note: note.trim() || null,
+      p_location: place,
+      p_room: roomNo || null,
     });
+    // Database not updated for locations yet: send the location at the start of the note instead.
+    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) {
+      ({ data, error } = await supabase().rpc("place_order", {
+        p_customer_name: guest,
+        p_items: items,
+        p_note: `[${place}${roomNo ? ` ${roomNo.replace(/]/g, "")}` : ""}] ${note.trim()}`.trim(),
+      }));
+    }
     setPlacing(false);
     if (error) {
       setError(error.message);
@@ -621,7 +663,48 @@ export default function CustomerMenu() {
             </div>
             <div className="stack">
               <div className="small muted">
-                Ordering as <strong style={{ color: "var(--text)" }}>{name}</strong>
+                Ordering as <strong style={{ color: "var(--text)" }}>{guest}</strong>
+              </div>
+              <div className={`place-pick ${placeMissing && !place ? "missing" : ""}`} role="radiogroup" aria-label="Your location">
+                <span className="small muted">Where are you?</span>
+                <div className="place-options">
+                  {LOCATIONS.map((l) => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      role="radio"
+                      aria-checked={place === l.code}
+                      className={`place-btn ${place === l.code ? "on" : ""}`}
+                      onClick={() => {
+                        setPlace(l.code);
+                        saveTab(PLACE_KEY, l.code);
+                        setPlaceMissing(false);
+                        if (error === "Please choose your location.") setError("");
+                      }}
+                    >
+                      <strong>{l.code}</strong>
+                      <span>{l.name}</span>
+                    </button>
+                  ))}
+                </div>
+                {place && NEEDS_ROOM.includes(place) && (
+                  <label className={`stack room-field ${roomMissing && !room.trim() ? "missing" : ""}`} style={{ gap: 4 }}>
+                    <span className="small muted">Your room number at Mango Hostel</span>
+                    <input
+                      value={room}
+                      onChange={(e) => {
+                        setRoom(e.target.value);
+                        saveTab(ROOM_KEY, e.target.value.trim() || null);
+                        setRoomMissing(false);
+                        if (error === "Please enter your room number at Mango Hostel.") setError("");
+                      }}
+                      maxLength={ROOM_MAX}
+                      inputMode="text"
+                      autoComplete="off"
+                      placeholder="Type your room number, e.g. 204"
+                    />
+                  </label>
+                )}
               </div>
               <label className="stack" style={{ gap: 4 }}>
                 <span className="small muted">Note (optional)</span>

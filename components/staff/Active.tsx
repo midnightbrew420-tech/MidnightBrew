@@ -1,5 +1,6 @@
 "use client";
-import { Order, sugarLabel } from "@/lib/types";
+import { Order, orderPlace, sugarLabel } from "@/lib/types";
+import LocationTag from "@/components/LocationTag";
 import { money } from "@/lib/brand";
 import { minutesAgo } from "@/lib/dates";
 
@@ -11,10 +12,13 @@ export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o
 
   const Card = ({ o }: { o: Order }) => {
     const n = (o.order_items ?? []).reduce((s, i) => s + i.qty, 0);
+    const { location, room, note } = orderPlace(o);
     return (
       <button className={`card order-card ${o.status === "new" && !o.seen ? "unseen" : ""}`} onClick={() => onOpen(o)}>
         <div className="row between">
-          <span className="order-name">{o.customer_name}</span>
+          <span className="order-name">
+            <LocationTag code={location} room={room} /> {o.customer_name}
+          </span>
           <span className={`pill ${o.status}`}>{pillText(o)}</span>
         </div>
         <div className="muted small" style={{ margin: "4px 0 8px" }}>
@@ -29,7 +33,7 @@ export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o
           ))}
           {(o.order_items?.length ?? 0) > 4 && <div className="muted">+ {(o.order_items?.length ?? 0) - 4} more</div>}
         </div>
-        {o.note && <div className="small" style={{ marginTop: 6, color: "var(--warn)" }}>Note: {o.note}</div>}
+        {note && <div className="small" style={{ marginTop: 6, color: "var(--warn)" }}>Note: {note}</div>}
         <div className="row between" style={{ marginTop: 10 }}>
           <span className="muted small">{n} item{n === 1 ? "" : "s"}</span>
           <strong className="price">{money(o.total)}</strong>

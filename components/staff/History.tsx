@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { PAYMENT_LABELS, money } from "@/lib/brand";
 import { dayRange, fromDateInput, timeShort, toDateInput } from "@/lib/dates";
-import { Order, sugarLabel } from "@/lib/types";
+import { Order, sugarLabel, orderPlace } from "@/lib/types";
+import LocationTag from "@/components/LocationTag";
 
 type Filter = "all" | "paid" | "cancelled" | "unpaid";
 
@@ -78,7 +79,9 @@ export default function History({ onOpen, refreshKey }: { onOpen: (o: Order) => 
                 <tr key={o.id} onClick={() => onOpen(o)} style={{ cursor: "pointer" }}>
                   <td>{timeShort(o.created_at)}</td>
                   <td>{o.order_no}</td>
-                  <td>{o.customer_name}</td>
+                  <td>
+                    <LocationTag code={orderPlace(o).location} room={orderPlace(o).room} /> {o.customer_name}
+                  </td>
                   <td className="small">{(o.order_items ?? []).map((i) => `${i.qty}× ${i.name}${i.sugar != null ? ` (${sugarLabel(i.sugar)})` : ""}`).join(", ")}</td>
                   <td className="small muted">{o.source === "staff" ? "Staff" : "QR"}</td>
                   <td><span className={`pill ${o.status}`}>{o.status}</span></td>
