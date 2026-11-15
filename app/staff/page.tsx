@@ -314,7 +314,7 @@ function Dashboard({ email }: { email: string }) {
       {unseen.length > 0 && (
         <div className="alert-banner">
           <span>
-            🔔 {unseen.length} new order{unseen.length > 1 ? "s" : ""}: {unseen.map((o) => { const l = orderPlace(o).location; return l ? `${o.customer_name} (${l})` : o.customer_name; }).join(", ")}
+            🔔 {unseen.length} new order{unseen.length > 1 ? "s" : ""}: {unseen.map((o) => { const { location: l, room: r } = orderPlace(o); return l ? `${o.customer_name} (${l}${r ? ` ${r}` : ""})` : o.customer_name; }).join(", ")}
           </span>
           <button
             className="btn"
@@ -389,6 +389,6 @@ function Dashboard({ email }: { email: string }) {
 
 function notifyNewOrder(o: Order) {
   const items = (o.order_items ?? []).map((i) => `${i.qty}× ${i.name}`).join(", ");
-  const l = orderPlace(o).location;
-  notify(`New order: ${o.customer_name}${l ? ` · ${l}` : ""}`, items || `Order #${o.order_no}`, o.id);
+  const { location: l, room: r } = orderPlace(o);
+  notify(`New order: ${o.customer_name}${l ? ` · ${l}${r ? ` ${r}` : ""}` : ""}`, items || `Order #${o.order_no}`, o.id);
 }

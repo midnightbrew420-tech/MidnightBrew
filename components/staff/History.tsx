@@ -80,7 +80,7 @@ export default function History({ onOpen, refreshKey }: { onOpen: (o: Order) => 
                   <td>{timeShort(o.created_at)}</td>
                   <td>{o.order_no}</td>
                   <td>
-                    <LocationTag code={orderPlace(o).location} /> {o.customer_name}
+                    <LocationTag code={orderPlace(o).location} room={orderPlace(o).room} /> {o.customer_name}
                   </td>
                   <td className="small">{(o.order_items ?? []).map((i) => `${i.qty}× ${i.name}${i.sugar != null ? ` (${sugarLabel(i.sugar)})` : ""}`).join(", ")}</td>
                   <td className="small muted">{o.source === "staff" ? "Staff" : "QR"}</td>

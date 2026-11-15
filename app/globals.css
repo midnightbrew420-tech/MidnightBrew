@@ -361,3 +361,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .place-btn.on { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .place-pick.missing .place-btn { border-color: var(--danger); }
 .place-pick.missing > span { color: var(--danger); font-weight: 600; }
+.room-field { margin-top: 2px; }
+.room-field input { font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+.room-field.missing > span { color: var(--danger); font-weight: 600; }
+.room-field.missing input { border-color: var(--danger); }

@@ -46,7 +46,7 @@ export default function OrderModal({
             <h2 style={{ marginBottom: 2 }}>{order.customer_name}</h2>
             {orderPlace(order).location && (
               <div style={{ margin: "2px 0 4px" }}>
-                <LocationTag code={orderPlace(order).location} full />
+                <LocationTag code={orderPlace(order).location} room={orderPlace(order).room} full />
               </div>
             )}
             <div className="muted small">

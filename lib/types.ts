@@ -32,6 +32,7 @@ export type Order = {
   order_no: number;
   customer_name: string;
   location?: string | null; // THR / EUP / MG (null for staff entries and older orders)
+  room?: string | null; // room number, for Mango (MG)
   note: string | null;
   source: "customer" | "staff";
   status: OrderStatus;
@@ -89,13 +90,21 @@ export const LOCATIONS = [
 export type LocationCode = (typeof LOCATIONS)[number]["code"];
 export const isLocation = (c: unknown): c is LocationCode => LOCATIONS.some((l) => l.code === c);
 export const locationName = (c: string | null | undefined) => LOCATIONS.find((l) => l.code === c)?.name ?? "";
+// Places that also need the guest's room number.
+export const NEEDS_ROOM: readonly string[] = ["MG"];
+export const ROOM_MAX = 20;
 
-// An order's location and note. If the database doesn't have the location column yet,
-// the menu sends the location at the start of the note instead ("[THR] no ice").
-export function orderPlace(o: { location?: string | null; note: string | null }): { location: string | null; note: string | null } {
-  const m = (o.note ?? "").match(/^\[(THR|EUP|MG)\]\s*/);
+// An order's location, room and note. If the database doesn't have the location columns yet,
+// the menu sends them at the start of the note instead ("[THR] no ice", "[MG 204] no ice").
+export function orderPlace(o: { location?: string | null; room?: string | null; note: string | null }): {
+  location: string | null;
+  room: string | null;
+  note: string | null;
+} {
+  const m = (o.note ?? "").match(/^\[(THR|EUP|MG)(?: ([^\]]{1,20}))?\]\s*/);
   const note = m ? (o.note ?? "").slice(m[0].length) || null : o.note;
-  return { location: isLocation(o.location) ? o.location : m ? m[1] : null, note };
+  if (isLocation(o.location)) return { location: o.location, room: o.room?.trim() || (m?.[2] ?? null), note };
+  return { location: m ? m[1] : null, room: m?.[2] ?? null, note };
 }
 
 export const SUGAR_LEVELS = [0, 25, 50, 75, 100] as const;

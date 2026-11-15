@@ -2,7 +2,8 @@
 -- Order location: which of the three places the customer is at.
 --   THR = The High Roof Top, EUP = Euphoria, MG = Mango
 --   orders.location (null for staff entries and older orders)
---   place_order() takes p_location as well.
+--   orders.room: room number, for Mango (MG)
+--   place_order() takes p_location and p_room as well.
 -- Safe to re-run.
 -- =====================================================================
 
@@ -11,11 +12,17 @@ alter table public.orders drop constraint if exists orders_location_check;
 alter table public.orders add constraint orders_location_check
   check (location is null or location in ('THR', 'EUP', 'MG'));
 
--- Replace the 3-argument version with one that also takes the location.
+alter table public.orders add column if not exists room text;
+alter table public.orders drop constraint if exists orders_room_length;
+alter table public.orders add constraint orders_room_length check (room is null or char_length(room) <= 20);
+
+-- Replace the older versions with one that also takes the location and room.
 drop function if exists public.place_order(text, jsonb, text);
+drop function if exists public.place_order(text, jsonb, text, text);
 
 create or replace function public.place_order(
-  p_customer_name text, p_items jsonb, p_note text default null, p_location text default null
+  p_customer_name text, p_items jsonb, p_note text default null,
+  p_location text default null, p_room text default null
 )
 returns table (id uuid, order_no bigint, total numeric)
 language plpgsql
@@ -36,10 +43,15 @@ begin
     raise exception 'Cart is empty';
   end if;
 
-  insert into orders (customer_name, location, note, source, status)
+  if upper(trim(p_location)) = 'MG' and nullif(trim(coalesce(p_room, '')), '') is null then
+    raise exception 'Please enter your room number';
+  end if;
+
+  insert into orders (customer_name, location, room, note, source, status)
   values (
     left(trim(p_customer_name), 60),
     case when upper(trim(p_location)) in ('THR', 'EUP', 'MG') then upper(trim(p_location)) end,
+    case when upper(trim(p_location)) in ('THR', 'EUP', 'MG') then nullif(left(trim(coalesce(p_room, '')), 20), '') end,
     nullif(left(trim(coalesce(p_note, '')), 300), ''),
     'customer', 'new'
   )
@@ -88,8 +100,8 @@ begin
 end;
 $$;
 
-revoke all on function public.place_order(text, jsonb, text, text) from public;
-grant execute on function public.place_order(text, jsonb, text, text) to anon, authenticated;
+revoke all on function public.place_order(text, jsonb, text, text, text) from public;
+grant execute on function public.place_order(text, jsonb, text, text, text) to anon, authenticated;
 
 -- Let the API see the new column and function straight away.
 notify pgrst, 'reload schema';

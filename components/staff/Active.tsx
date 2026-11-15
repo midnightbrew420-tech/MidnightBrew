@@ -12,12 +12,12 @@ export default function Active({ orders, onOpen }: { orders: Order[]; onOpen: (o
 
   const Card = ({ o }: { o: Order }) => {
     const n = (o.order_items ?? []).reduce((s, i) => s + i.qty, 0);
-    const { location, note } = orderPlace(o);
+    const { location, room, note } = orderPlace(o);
     return (
       <button className={`card order-card ${o.status === "new" && !o.seen ? "unseen" : ""}`} onClick={() => onOpen(o)}>
         <div className="row between">
           <span className="order-name">
-            <LocationTag code={location} /> {o.customer_name}
+            <LocationTag code={location} room={room} /> {o.customer_name}
           </span>
           <span className={`pill ${o.status}`}>{pillText(o)}</span>
         </div>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { BRAND, money } from "@/lib/brand";
 import {
-  DEFAULT_SUGAR, LOCATIONS, LocationCode, isLocation, MenuItem, SUGAR_LEVELS, Variant, cartKey, isDrink, lineName, parseKey, priceOptions, sortMenu, sugarLabel,
+  DEFAULT_SUGAR, LOCATIONS, LocationCode, NEEDS_ROOM, ROOM_MAX, isLocation, MenuItem, SUGAR_LEVELS, Variant, cartKey, isDrink, lineName, parseKey, priceOptions, sortMenu, sugarLabel,
 } from "@/lib/types";
 import { askNotifications, notify } from "@/lib/notify";
 import { chime, unlockAudio } from "@/components/staff/alarm";
@@ -25,6 +25,7 @@ const WAIT_KEY = "mb_waiting_order";
 const GUEST_KEY = "mb_guest_name";
 // Where the customer is (THR / EUP / MG). Kept in this browser tab only, like the name.
 const PLACE_KEY = "mb_location";
+const ROOM_KEY = "mb_room"; // Mango room number, this tab only
 // Older versions saved the customer's name and last order on the phone; these are cleared on load.
 const OLD_KEYS = ["mb_name", "mb_last_order", "mb_cart_v2", "mb_cart_v3", "mb_waiting_order"];
 
@@ -76,6 +77,8 @@ export default function CustomerMenu() {
   const [hours, setHours] = useState(""); // opening hours text set by staff
   const [place, setPlace] = useState<LocationCode | null>(null); // which of the three locations
   const [placeMissing, setPlaceMissing] = useState(false);
+  const [room, setRoom] = useState(""); // room number (Mango)
+  const [roomMissing, setRoomMissing] = useState(false);
   const [pickSugar, setPickSugar] = useState<number>(DEFAULT_SUGAR);
   const [pickQty, setPickQty] = useState(1);
 
@@ -101,6 +104,8 @@ export default function CustomerMenu() {
         setPlace(p);
         saveTab(PLACE_KEY, p);
       }
+      const r = loadTab<string | null>(ROOM_KEY, null);
+      if (r) setRoom(r);
     } catch {}
     const w = loadTab<{ id: string } | null>(WAIT_KEY, null);
     if (w?.id) setWaiting({ id: w.id, status: "new" });
@@ -247,6 +252,13 @@ export default function CustomerMenu() {
       setError("Please choose your location.");
       return;
     }
+    const needsRoom = NEEDS_ROOM.includes(place);
+    const roomNo = needsRoom ? room.trim().slice(0, ROOM_MAX) : "";
+    if (needsRoom && !roomNo) {
+      setRoomMissing(true);
+      setError("Please enter your room number.");
+      return;
+    }
     if (unavailableInCart.length) {
       setError("Some items just sold out — please remove them first.");
       return;
@@ -260,13 +272,14 @@ export default function CustomerMenu() {
       p_items: items,
       p_note: note.trim() || null,
       p_location: place,
+      p_room: roomNo || null,
     });
     // Database not updated for locations yet: send the location at the start of the note instead.
     if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) {
       ({ data, error } = await supabase().rpc("place_order", {
         p_customer_name: guest,
         p_items: items,
-        p_note: `[${place}] ${note.trim()}`.trim(),
+        p_note: `[${place}${roomNo ? ` ${roomNo.replace(/]/g, "")}` : ""}] ${note.trim()}`.trim(),
       }));
     }
     setPlacing(false);
@@ -674,6 +687,24 @@ export default function CustomerMenu() {
                     </button>
                   ))}
                 </div>
+                {place && NEEDS_ROOM.includes(place) && (
+                  <label className={`stack room-field ${roomMissing && !room.trim() ? "missing" : ""}`} style={{ gap: 4 }}>
+                    <span className="small muted">Room number</span>
+                    <input
+                      value={room}
+                      onChange={(e) => {
+                        setRoom(e.target.value);
+                        saveTab(ROOM_KEY, e.target.value.trim() || null);
+                        setRoomMissing(false);
+                        if (error === "Please enter your room number.") setError("");
+                      }}
+                      maxLength={ROOM_MAX}
+                      inputMode="text"
+                      autoComplete="off"
+                      placeholder="e.g. 204"
+                    />
+                  </label>
+                )}
               </div>
               <label className="stack" style={{ gap: 4 }}>
                 <span className="small muted">Note (optional)</span>
