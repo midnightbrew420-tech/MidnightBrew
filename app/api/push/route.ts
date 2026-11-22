@@ -31,17 +31,37 @@ const TEXT = {
   },
 };
 
+// Read settings when the request runs, not when the site was built: Next.js bakes
+// process.env.NEXT_PUBLIC_* into the code at build time, so look them up by name.
+function env(name: string) {
+  return (process.env[name] ?? "").trim().replace(/^["']|["']$/g, "");
+}
+const publicKeyNow = () => env("NEXT_PUBLIC_VAPID_PUBLIC_KEY") || env("VAPID_PUBLIC_KEY");
+
 function missingSettings() {
-  return ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"].filter(
-    (k) => !process.env[k]
-  );
+  const m = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VAPID_PRIVATE_KEY"].filter((k) => !env(k));
+  if (!publicKeyNow()) m.splice(2, 0, "NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+  return m;
+}
+
+// The page asks for the public key (safe to share) and whether anything is missing.
+export async function GET() {
+  const missing = missingSettings();
+  if (publicKeyNow() && env("VAPID_PRIVATE_KEY")) {
+    try {
+      webpush.setVapidDetails("mailto:staff@midnightbrew.app", publicKeyNow(), env("VAPID_PRIVATE_KEY"));
+    } catch (e) {
+      missing.push(`correct VAPID keys (${(e as Error).message})`);
+    }
+  }
+  return NextResponse.json({ publicKey: publicKeyNow(), missing }, { headers: { "cache-control": "no-store" } });
 }
 
 function config() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  const url = env("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
+  const publicKey = publicKeyNow();
+  const privateKey = env("VAPID_PRIVATE_KEY");
   if (!url || !serviceKey || !publicKey || !privateKey) return null;
   webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:staff@midnightbrew.app", publicKey, privateKey);
   return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
