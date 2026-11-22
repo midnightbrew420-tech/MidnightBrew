@@ -6,7 +6,7 @@ import { BRAND, money } from "@/lib/brand";
 import {
   DEFAULT_SUGAR, LOCATIONS, LocationCode, NEEDS_ROOM, ROOM_MAX, isLocation, MenuItem, SUGAR_LEVELS, Variant, cartKey, isDrink, lineName, parseKey, priceOptions, sortMenu, sugarLabel,
 } from "@/lib/types";
-import { askNotifications, notify } from "@/lib/notify";
+import { askNotifications, notify, sendPush, subscribePush } from "@/lib/notify";
 import { chime, unlockAudio } from "@/components/staff/alarm";
 import Thumb from "@/components/Thumb";
 import Cat from "@/components/Cat";
@@ -304,6 +304,16 @@ export default function CustomerMenu() {
     setSent({ total: Number(row?.total ?? cartTotal) });
     if (row?.id) {
       saveTab(WAIT_KEY, { id: row.id });
+      // Push: tell staff about the new order, and let this phone hear "accepted" / "ready"
+      // even after the menu is closed (where the phone supports it).
+      const orderId = row.id as string;
+      sendPush(orderId, "new");
+      subscribePush((s) =>
+        supabase().rpc("save_push_subscription", {
+          p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth,
+          p_role: "customer", p_order_id: orderId, p_lang: lang,
+        })
+      );
       setReadyAlert(false);
       setWaiting({ id: row.id, status: "new" });
     }

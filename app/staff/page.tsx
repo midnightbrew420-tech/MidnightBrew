@@ -15,7 +15,7 @@ import MenuToggle from "@/components/staff/MenuToggle";
 import OrderModal from "@/components/staff/OrderModal";
 import QrModal from "@/components/staff/QrModal";
 import { audioReady, chime, unlockAudio } from "@/components/staff/alarm";
-import { askNotifications, notify } from "@/lib/notify";
+import { PushState, askNotifications, notify, pushState, subscribePush } from "@/lib/notify";
 
 type Tab = "active" | "add" | "history" | "report" | "menu";
 const TABS: { id: Tab; label: "tabActive" | "tabAdd" | "tabHistory" | "tabReport" | "tabMenu" }[] = [
@@ -108,6 +108,29 @@ function Dashboard({ email }: { email: string }) {
   const [showQr, setShowQr] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
   const [notifPerm, setNotifPerm] = useState<string>("default");
+  const [push, setPush] = useState<PushState | null>(null);
+  const [pushError, setPushError] = useState(false);
+  const savePush = useCallback(
+    (s: { endpoint: string; p256dh: string; auth: string }) =>
+      supabase().rpc("save_push_subscription", {
+        p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_role: "staff", p_lang: lang,
+      }),
+    [lang]
+  );
+  const turnOnPush = async () => {
+    setPushError(false);
+    const st = await subscribePush(savePush);
+    setPush(st);
+    if (typeof Notification !== "undefined") setNotifPerm(Notification.permission);
+    if (st === "off") setPushError(true);
+  };
+  // Check push on load, and re-save this device (with the current language) when it is already on.
+  useEffect(() => {
+    pushState().then((st) => {
+      setPush(st);
+      if (st === "on") subscribePush(savePush);
+    });
+  }, [savePush]);
   const [shopOpen, setShopOpen] = useState<boolean | null>(null); // null until loaded
   const [shopBusy, setShopBusy] = useState(false);
   const [hours, setHours] = useState("");
@@ -312,6 +335,16 @@ function Dashboard({ email }: { email: string }) {
         </div>
       )}
 
+      {push && push !== "on" && push !== "not-set-up" && (
+        <div className="row between wrap push-bar">
+          <span className="small">
+            {push === "ios-home-screen" ? t("pushIos") : push === "denied" ? t("pushDenied") : pushError ? t("pushFailed") : t("pushHint")}
+          </span>
+          {push === "off" && (
+            <button className="btn btn-primary" onClick={turnOnPush}>{t("pushTurnOn")}</button>
+          )}
+        </div>
+      )}
       {(!soundOn || notifPerm === "default") && (
         <div className="row between wrap" style={{ padding: "10px 16px", background: "var(--surface-2)" }}>
           <span className="small">{t("alertsHint")}</span>

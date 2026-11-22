@@ -5,6 +5,9 @@ import { BRAND } from "@/lib/brand";
 export const metadata: Metadata = {
   title: BRAND.name,
   description: `${BRAND.name} — ${BRAND.tagline}`,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: BRAND.name, statusBarStyle: "default" },
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
