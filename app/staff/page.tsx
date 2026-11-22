@@ -256,11 +256,24 @@ function Dashboard({ email }: { email: string }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "shop_status" }, () => loadShop())
       .subscribe();
     const poll = setInterval(loadActive, 15000);
-    setSoundOn(audioReady());
     if (typeof Notification !== "undefined") setNotifPerm(Notification.permission);
+    // Alert sounds: browsers only allow them after the page is touched, every time it
+    // opens. Try straight away (installed apps are often allowed), and otherwise switch
+    // them on at the first tap anywhere, so nobody has to press a button each time.
+    unlockAudio();
+    const check = () => setSoundOn(audioReady());
+    const soundCheck = setTimeout(check, 300);
+    const onTouch = () => {
+      unlockAudio();
+      setTimeout(check, 100);
+    };
+    const events = ["pointerdown", "touchstart", "keydown"] as const;
+    events.forEach((ev) => document.addEventListener(ev, onTouch, { capture: true, passive: true }));
     return () => {
       db.removeChannel(ch);
       clearInterval(poll);
+      clearTimeout(soundCheck);
+      events.forEach((ev) => document.removeEventListener(ev, onTouch, { capture: true }));
     };
   }, [loadMenu, loadActive, loadShop, refreshAll]);
 
@@ -382,7 +395,8 @@ function Dashboard({ email }: { email: string }) {
           {push === "on" && <button className="btn" onClick={sendTest}>{t("sendTest")}</button>}
         </div>
       )}
-      {(!soundOn || notifPerm === "default") && (
+      {/* Once notifications are allowed this never shows again: sound switches on by itself at the first tap. */}
+      {(notifPerm === "default" || (notifPerm !== "granted" && !soundOn)) && (
         <div className="row between wrap" style={{ padding: "10px 16px", background: "var(--surface-2)" }}>
           <span className="small">{t("alertsHint")}</span>
           <button className="btn btn-primary" onClick={enableAlerts}>{t("enableAlerts")}</button>
