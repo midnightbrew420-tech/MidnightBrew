@@ -5,10 +5,10 @@
 let ctx: AudioContext | null = null;
 
 export function unlockAudio() {
-  unlockVoice();
   try {
     if (!ctx) ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     if (ctx.state === "suspended") ctx.resume();
+    loadCoffee();
     return ctx.state !== "closed";
   } catch {
     return false;
@@ -41,35 +41,22 @@ export function chime() {
 }
 
 // ---------------------------------------------------------------------------
-// Staff new-order alert: a short two-note chime, then the phone's voice says "Coffee!".
+// Staff new-order alert: a short two-note chime, then a voice saying "Coffee!"
+// (public/sounds/coffee.mp3, replace that file to change the voice). It plays
+// through the same audio as the chime, so it works wherever the chime works.
 
-let voiceUnlocked = false;
+let coffee: AudioBuffer | null = null;
+let loading = false;
 
-// iPhone/iPad only speak after a tap has spoken once: say nothing, silently, on the first tap.
-function unlockVoice() {
-  try {
-    if (voiceUnlocked || typeof speechSynthesis === "undefined") return;
-    // Only a real tap counts. (Browsers without userActivation: try on every tap.)
-    const active = (navigator as { userActivation?: { isActive: boolean } }).userActivation?.isActive;
-    if (active === false) return;
-    const u = new SpeechSynthesisUtterance(" ");
-    u.volume = 0;
-    speechSynthesis.speak(u);
-    if (active) voiceUnlocked = true;
-  } catch {}
-}
-
-function englishVoice() {
-  try {
-    const voices = speechSynthesis.getVoices();
-    return (
-      voices.find((v) => /^en[-_]US$/i.test(v.lang) && v.localService) ||
-      voices.find((v) => /^en/i.test(v.lang)) ||
-      null
-    );
-  } catch {
-    return null;
-  }
+function loadCoffee() {
+  if (coffee || loading || !ctx) return;
+  loading = true;
+  fetch("/sounds/coffee.mp3")
+    .then((r) => r.arrayBuffer())
+    .then((b) => new Promise<AudioBuffer>((ok, fail) => ctx!.decodeAudioData(b, ok, fail)))
+    .then((buf) => (coffee = buf))
+    .catch(() => {})
+    .finally(() => (loading = false));
 }
 
 export function newOrderSound() {
@@ -88,20 +75,16 @@ export function newOrderSound() {
       o.start(t);
       o.stop(t + 0.3);
     });
+    if (coffee) {
+      const src = ctx.createBufferSource();
+      src.buffer = coffee;
+      src.connect(ctx.destination);
+      src.start(now + 0.4);
+    } else {
+      loadCoffee();
+    }
   }
   try {
     navigator.vibrate?.([200, 100, 200]);
-  } catch {}
-  try {
-    if (typeof speechSynthesis === "undefined") return;
-    speechSynthesis.cancel(); // never pile up while the alert repeats
-    const u = new SpeechSynthesisUtterance("Coffee!");
-    const v = englishVoice();
-    if (v) u.voice = v;
-    u.lang = v?.lang || "en-US";
-    u.rate = 0.95;
-    u.pitch = 1.1;
-    u.volume = 1;
-    setTimeout(() => speechSynthesis.speak(u), 350); // right after the chime
   } catch {}
 }
