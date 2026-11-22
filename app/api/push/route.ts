@@ -31,6 +31,12 @@ const TEXT = {
   },
 };
 
+function missingSettings() {
+  return ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY"].filter(
+    (k) => !process.env[k]
+  );
+}
+
 function config() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,15 +49,23 @@ function config() {
 
 export async function POST(req: Request) {
   const db = config();
-  if (!db) return NextResponse.json({ sent: 0, reason: "push not set up" }, { status: 501 });
+  if (!db)
+    return NextResponse.json(
+      { sent: 0, reason: `push not set up on the server: missing ${missingSettings().join(", ")} in Vercel` },
+      { status: 501 }
+    );
 
-  let body: { orderId?: string; event?: Event };
+  let body: { orderId?: string; event?: Event | "test"; endpoint?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
-  const { orderId, event } = body;
+  // "Send test" on the staff page: push to that one staff device, if it is registered.
+  if (body.event === "test") return sendTest(db, body.endpoint);
+
+  const { orderId } = body;
+  const event = body.event as Event;
   if (!orderId || !/^[0-9a-f-]{36}$/i.test(orderId) || !["new", "taken", "ready"].includes(event ?? "")) {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
@@ -124,4 +138,38 @@ function placeOf(o: { location?: string | null; room?: string | null; note?: str
   if (o.location) return o.room ? `${o.location} ${o.room}` : o.location;
   const m = (o.note ?? "").match(/^\[(THR|EUP|MG|MNB)(?: ([^\]]{1,20}))?\]/);
   return m ? (m[2] ? `${m[1]} ${m[2]}` : m[1]) : "";
+}
+
+async function sendTest(db: NonNullable<ReturnType<typeof config>>, endpoint?: string) {
+  if (!endpoint) return NextResponse.json({ sent: 0, reason: "no push address" }, { status: 400 });
+  const { data, error } = await db
+    .from("push_subscriptions")
+    .select("id, endpoint, p256dh, auth, lang")
+    .eq("role", "staff")
+    .eq("endpoint", endpoint)
+    .limit(1);
+  if (error) return NextResponse.json({ sent: 0, reason: `database: ${error.message}` }, { status: 500 });
+  const s = (data ?? [])[0] as Sub | undefined;
+  if (!s) return NextResponse.json({ sent: 0, reason: "this device is not registered (tap Turn on again)" }, { status: 404 });
+  const th = s.lang === "th";
+  try {
+    await webpush.sendNotification(
+      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+      JSON.stringify({
+        title: th ? "ทดสอบการแจ้งเตือน ✓" : "Test notification ✓",
+        body: th ? "การแจ้งเตือนออเดอร์ใช้งานได้บนเครื่องนี้" : "Order notifications work on this device.",
+        url: "/staff",
+        tag: "test",
+      }),
+      { TTL: 300, urgency: "high" }
+    );
+    return NextResponse.json({ sent: 1 });
+  } catch (e) {
+    const err = e as { statusCode?: number; body?: string; message?: string };
+    if (err.statusCode === 404 || err.statusCode === 410) await db.from("push_subscriptions").delete().eq("id", s.id);
+    return NextResponse.json(
+      { sent: 0, reason: `push service said ${err.statusCode ?? ""} ${(err.body || err.message || "").slice(0, 200)}`.trim() },
+      { status: 502 }
+    );
+  }
 }

@@ -15,7 +15,7 @@ import MenuToggle from "@/components/staff/MenuToggle";
 import OrderModal from "@/components/staff/OrderModal";
 import QrModal from "@/components/staff/QrModal";
 import { audioReady, chime, unlockAudio } from "@/components/staff/alarm";
-import { PushState, askNotifications, notify, pushState, subscribePush } from "@/lib/notify";
+import { PushState, askNotifications, notify, pushEndpoint, pushState, subscribePush } from "@/lib/notify";
 
 type Tab = "active" | "add" | "history" | "report" | "menu";
 const TABS: { id: Tab; label: "tabActive" | "tabAdd" | "tabHistory" | "tabReport" | "tabMenu" }[] = [
@@ -109,7 +109,8 @@ function Dashboard({ email }: { email: string }) {
   const [soundOn, setSoundOn] = useState(false);
   const [notifPerm, setNotifPerm] = useState<string>("default");
   const [push, setPush] = useState<PushState | null>(null);
-  const [pushError, setPushError] = useState(false);
+  const [pushError, setPushError] = useState(""); // why push couldn't be turned on, if it couldn't
+  const [testMsg, setTestMsg] = useState("");
   const savePush = useCallback(
     (s: { endpoint: string; p256dh: string; auth: string }) =>
       supabase().rpc("save_push_subscription", {
@@ -118,19 +119,44 @@ function Dashboard({ email }: { email: string }) {
     [lang]
   );
   const turnOnPush = async () => {
-    setPushError(false);
-    const st = await subscribePush(savePush);
-    setPush(st);
+    setPushError("");
+    setTestMsg("");
+    const res = await subscribePush(savePush);
+    setPush(res.state);
+    setPushError(res.error ?? "");
     if (typeof Notification !== "undefined") setNotifPerm(Notification.permission);
-    if (st === "off") setPushError(true);
   };
   // Check push on load, and re-save this device (with the current language) when it is already on.
+  // If saving fails, show why instead of hiding the problem.
   useEffect(() => {
-    pushState().then((st) => {
+    pushState().then(async (st) => {
       setPush(st);
-      if (st === "on") subscribePush(savePush);
+      if (st !== "on") return;
+      const res = await subscribePush(savePush);
+      setPush(res.state);
+      setPushError(res.error ?? "");
     });
   }, [savePush]);
+  const sendTest = async () => {
+    setTestMsg("…");
+    const endpoint = await pushEndpoint();
+    if (!endpoint) return setTestMsg(translate(langNow(), "testFailed", { why: "no push address on this device" }));
+    try {
+      const res = await fetch("/api/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event: "test", endpoint }),
+      });
+      const j = await res.json().catch(() => ({}));
+      setTestMsg(
+        res.ok && j.sent
+          ? translate(langNow(), "testSent")
+          : translate(langNow(), "testFailed", { why: j.reason || j.error || `HTTP ${res.status}` })
+      );
+    } catch (e) {
+      setTestMsg(translate(langNow(), "testFailed", { why: (e as Error).message }));
+    }
+  };
   const [shopOpen, setShopOpen] = useState<boolean | null>(null); // null until loaded
   const [shopBusy, setShopBusy] = useState(false);
   const [hours, setHours] = useState("");
@@ -335,14 +361,25 @@ function Dashboard({ email }: { email: string }) {
         </div>
       )}
 
-      {push && push !== "on" && push !== "not-set-up" && (
-        <div className="row between wrap push-bar">
+      {push && (
+        <div className={`row between wrap push-bar ${push === "on" ? "is-on" : push === "not-set-up" || pushError ? "is-bad" : ""}`}>
           <span className="small">
-            {push === "ios-home-screen" ? t("pushIos") : push === "denied" ? t("pushDenied") : pushError ? t("pushFailed") : t("pushHint")}
+            {push === "on"
+              ? t("pushOnLine")
+              : push === "not-set-up"
+              ? t("pushNotSetUp")
+              : push === "ios-home-screen"
+              ? t("pushIos")
+              : push === "denied"
+              ? t("pushDenied")
+              : pushError
+              ? t("pushFailed")
+              : t("pushHint")}
+            {pushError && <span className="push-detail"> {t("details")} {pushError}</span>}
+            {testMsg && <span className="push-detail"> {testMsg}</span>}
           </span>
-          {push === "off" && (
-            <button className="btn btn-primary" onClick={turnOnPush}>{t("pushTurnOn")}</button>
-          )}
+          {push === "off" && <button className="btn btn-primary" onClick={turnOnPush}>{t("pushTurnOn")}</button>}
+          {push === "on" && <button className="btn" onClick={sendTest}>{t("sendTest")}</button>}
         </div>
       )}
       {(!soundOn || notifPerm === "default") && (
