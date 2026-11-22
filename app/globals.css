@@ -373,3 +373,4 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .lang-toggle button.on { background: var(--accent); color: var(--accent-ink); }
 .brand .lang-toggle { margin-right: 8px; }
 .welcome-lang { display: flex; justify-content: center; margin-top: 14px; }
+.push-bar { padding: 10px 16px; background: #eef3fb; border-bottom: 1px solid var(--line); }

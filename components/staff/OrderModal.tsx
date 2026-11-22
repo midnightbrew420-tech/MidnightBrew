@@ -7,6 +7,7 @@ import { dateTimeShort } from "@/lib/dates";
 import { Order, sugarLabel, orderPlace } from "@/lib/types";
 import LocationTag from "@/components/LocationTag";
 import PayPicker from "./PayPicker";
+import { sendPush } from "@/lib/notify";
 
 export default function OrderModal({
   order,
@@ -105,7 +106,9 @@ export default function OrderModal({
             <button
               className="btn btn-primary btn-block"
               disabled={busy}
-              onClick={() => update({ status: "taken", taken_at: now(), seen: true })}
+              onClick={async () => {
+                if (await update({ status: "taken", taken_at: now(), seen: true })) sendPush(order.id, "taken");
+              }}
             >
               {t("takeOrder")}
             </button>
@@ -114,7 +117,9 @@ export default function OrderModal({
             <button
               className="btn btn-primary btn-block"
               disabled={busy}
-              onClick={() => update({ status: "ready", ready_at: now() })}
+              onClick={async () => {
+                if (await update({ status: "ready", ready_at: now() })) sendPush(order.id, "ready");
+              }}
             >
               {t("readyTell")}
             </button>
