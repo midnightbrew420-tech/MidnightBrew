@@ -374,3 +374,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .brand .lang-toggle { margin-right: 8px; }
 .welcome-lang { display: flex; justify-content: center; margin-top: 14px; }
 .push-bar { padding: 10px 16px; background: #eef3fb; border-bottom: 1px solid var(--line); }
+.push-bar.is-on { background: #eef7ee; }
+.push-bar.is-bad { background: #fdf1e3; }
+.push-detail { display: block; margin-top: 2px; opacity: .8; word-break: break-word; }

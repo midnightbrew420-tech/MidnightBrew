@@ -78,23 +78,43 @@ export async function pushState(): Promise<PushState> {
  */
 export async function subscribePush(
   save: (sub: { endpoint: string; p256dh: string; auth: string }) => PromiseLike<{ error: { message: string } | null }>
-): Promise<PushState> {
+): Promise<{ state: PushState; error?: string }> {
   const state = await pushState();
-  if (state === "not-set-up" || state === "unsupported" || state === "ios-home-screen" || state === "denied") return state;
+  if (state === "not-set-up" || state === "unsupported" || state === "ios-home-screen" || state === "denied") return { state };
   try {
-    if (Notification.permission === "default" && (await Notification.requestPermission()) !== "granted") return "denied";
+    if (Notification.permission === "default" && (await Notification.requestPermission()) !== "granted") return { state: "denied" };
     const r = await registration();
-    if (!r) return "unsupported";
+    if (!r) return { state: "unsupported" };
     await navigator.serviceWorker.ready;
-    const sub =
-      (await r.pushManager.getSubscription()) ??
-      (await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
+    let sub = await r.pushManager.getSubscription();
+    // A device registered with an older key can't receive pushes from the current one: renew it.
+    const key = sub?.options?.applicationServerKey;
+    if (sub && key && !sameKey(key, keyBytes(VAPID_PUBLIC_KEY))) {
+      await sub.unsubscribe();
+      sub = null;
+    }
+    sub ??= await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
     const j = sub.toJSON();
-    if (!j.endpoint || !j.keys?.p256dh || !j.keys?.auth) return "off";
+    if (!j.endpoint || !j.keys?.p256dh || !j.keys?.auth) return { state: "off", error: "The phone gave no push address." };
     const { error } = await save({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth });
-    return error ? "off" : "on";
+    return error ? { state: "off", error: error.message } : { state: "on" };
+  } catch (e) {
+    return { state: "off", error: (e as Error)?.message || String(e) };
+  }
+}
+
+function sameKey(a: ArrayBuffer, b: Uint8Array) {
+  const x = new Uint8Array(a);
+  return x.length === b.length && x.every((v, i) => v === b[i]);
+}
+
+/** This device's push address, if it has one. */
+export async function pushEndpoint(): Promise<string | null> {
+  try {
+    const r = await registration();
+    return (await r?.pushManager.getSubscription())?.endpoint ?? null;
   } catch {
-    return "off";
+    return null;
   }
 }
 
