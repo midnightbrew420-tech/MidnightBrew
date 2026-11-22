@@ -14,7 +14,7 @@ import Report from "@/components/staff/Report";
 import MenuToggle from "@/components/staff/MenuToggle";
 import OrderModal from "@/components/staff/OrderModal";
 import QrModal from "@/components/staff/QrModal";
-import { audioReady, chime, unlockAudio } from "@/components/staff/alarm";
+import { audioReady, newOrderSound, unlockAudio } from "@/components/staff/alarm";
 import { PushState, askNotifications, notify, pushEndpoint, pushMissingSettings, pushState, subscribePush } from "@/lib/notify";
 
 type Tab = "active" | "add" | "history" | "report" | "menu";
@@ -287,7 +287,7 @@ function Dashboard({ email }: { email: string }) {
     }
     let flip = false;
     const ring = () => {
-      chime();
+      newOrderSound();
       flip = !flip;
       document.title = flip ? translate(langNow(), "newOrderTitle", { n: unseen.length }) : `Staff · ${BRAND.name}`;
     };
@@ -310,7 +310,7 @@ function Dashboard({ email }: { email: string }) {
 
   const enableAlerts = async () => {
     setSoundOn(unlockAudio());
-    chime();
+    newOrderSound();
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       await askNotifications();
       setNotifPerm(Notification.permission);
