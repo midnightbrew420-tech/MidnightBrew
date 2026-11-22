@@ -15,7 +15,7 @@ import MenuToggle from "@/components/staff/MenuToggle";
 import OrderModal from "@/components/staff/OrderModal";
 import QrModal from "@/components/staff/QrModal";
 import { audioReady, chime, unlockAudio } from "@/components/staff/alarm";
-import { PushState, askNotifications, notify, pushEndpoint, pushState, subscribePush } from "@/lib/notify";
+import { PushState, askNotifications, notify, pushEndpoint, pushMissingSettings, pushState, subscribePush } from "@/lib/notify";
 
 type Tab = "active" | "add" | "history" | "report" | "menu";
 const TABS: { id: Tab; label: "tabActive" | "tabAdd" | "tabHistory" | "tabReport" | "tabMenu" }[] = [
@@ -380,7 +380,7 @@ function Dashboard({ email }: { email: string }) {
             {push === "on"
               ? t("pushOnLine")
               : push === "not-set-up"
-              ? t("pushNotSetUp")
+              ? t("pushNotSetUp", { names: pushMissingSettings().join(", ") || "NEXT_PUBLIC_VAPID_PUBLIC_KEY" })
               : push === "ios-home-screen"
               ? t("pushIos")
               : push === "denied"

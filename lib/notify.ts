@@ -37,10 +37,32 @@ export async function notify(title: string, body: string, tag?: string) {
 
 // ---------------------------------------------------------------------------
 // Push notifications (arrive even when the website is closed).
-// Needs NEXT_PUBLIC_VAPID_PUBLIC_KEY on Vercel. On iPhone/iPad they only work
-// when the site was added to the Home Screen and opened from that icon.
+// Needs the VAPID keys on Vercel. The public key is asked from the server when the
+// page runs (GET /api/push), so it works without a rebuild. On iPhone/iPad push
+// only works when the site was added to the Home Screen and opened from that icon.
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+let VAPID_PUBLIC_KEY = "";
+let missing: string[] = [];
+let setupLoaded: Promise<void> | null = null;
+
+function loadSetup() {
+  setupLoaded ??= fetch("/api/push", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((j: { publicKey?: string; missing?: string[] }) => {
+      VAPID_PUBLIC_KEY = j.publicKey || "";
+      missing = j.missing ?? [];
+    })
+    .catch(() => {
+      setupLoaded = null; // try again next time
+      missing = ["(could not reach /api/push)"];
+    });
+  return setupLoaded;
+}
+
+/** Vercel settings the server says are missing (empty when push is fully set up). */
+export function pushMissingSettings() {
+  return missing;
+}
 
 export type PushState = "on" | "off" | "denied" | "unsupported" | "ios-home-screen" | "not-set-up";
 
@@ -59,7 +81,8 @@ function keyBytes(base64url: string) {
 
 /** What push can do on this device right now (no prompts). */
 export async function pushState(): Promise<PushState> {
-  if (!VAPID_PUBLIC_KEY) return "not-set-up";
+  await loadSetup();
+  if (!VAPID_PUBLIC_KEY || missing.length) return "not-set-up";
   if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined")
     return isIos() && !isStandalone() ? "ios-home-screen" : "unsupported";
   if (Notification.permission === "denied") return "denied";
